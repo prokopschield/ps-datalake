@@ -29,6 +29,12 @@ pub struct Compressor {
 }
 
 impl Compressor {
+    pub fn new() -> Self {
+        Self {
+            cell: RefCell::from(Some(alloc_compressor())),
+        }
+    }
+
     pub fn compress(&self, data: &[u8]) -> Result<Vec<u8>, Box<dyn Error>> {
         let mut compressor = get_compressor(&self.cell);
         let mut out_data = Vec::with_capacity(COMPRESSION_VEC_CAPACITY);
