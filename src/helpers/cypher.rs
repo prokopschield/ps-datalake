@@ -10,6 +10,21 @@ pub struct Encrypted {
     pub key: String,
 }
 
+const KSIZE: usize = 32;
+const NSIZE: usize = 12;
+
+pub fn parse_key(key: &[u8]) -> ([u8; KSIZE], [u8; NSIZE]) {
+    let raw_key = ps_base64::decode(key);
+
+    let mut encryption_key = [0u8; KSIZE];
+    let mut nonce = [0u8; NSIZE];
+
+    encryption_key.copy_from_slice(&raw_key[0..KSIZE]);
+    nonce.copy_from_slice(&raw_key[raw_key.len() - NSIZE..raw_key.len()]);
+
+    return (encryption_key, nonce);
+}
+
 pub fn encrypt(data: &[u8], compressor: Compressor) -> Result<Encrypted, Box<dyn Error>> {
     let compressed_data = compressor.compress(data)?;
     let hash_of_raw_data = ps_hash::hash(data);
