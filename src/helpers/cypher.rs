@@ -25,7 +25,7 @@ pub fn parse_key(key: &[u8]) -> ([u8; KSIZE], [u8; NSIZE]) {
     return (encryption_key, nonce);
 }
 
-pub fn encrypt(data: &[u8], compressor: Compressor) -> Result<Encrypted, Box<dyn Error>> {
+pub fn encrypt(data: &[u8], compressor: &Compressor) -> Result<Encrypted, Box<dyn Error>> {
     let compressed_data = compressor.compress(data)?;
     let hash_of_raw_data = ps_hash::hash(data);
     let (encryption_key, nonce) = parse_key(&hash_of_raw_data.as_bytes());
@@ -40,13 +40,17 @@ pub fn encrypt(data: &[u8], compressor: Compressor) -> Result<Encrypted, Box<dyn
     })
 }
 
-pub fn decrypt(data: &[u8], key: &[u8], compressor: Compressor) -> Result<Vec<u8>, Box<dyn Error>> {
+pub fn decrypt(
+    data: &[u8],
+    key: &[u8],
+    compressor: &Compressor,
+) -> Result<Vec<u8>, Box<dyn Error>> {
     let (encryption_key, nonce) = parse_key(key);
     let chacha = chacha20poly1305::ChaCha12Poly1305::new(&encryption_key.into());
     let compressed_data = chacha.decrypt(&nonce.into(), data)?;
 
     let out_size_vec = ps_base64::decode(&key[36..38]);
-    let out_size = out_size_vec[0] << 8 + out_size_vec[1];
+    let out_size = ((out_size_vec[0] as usize) << 8) + (out_size_vec[1] as usize);
 
-    Ok(compressor.decompress(&compressed_data, out_size.into())?)
+    Ok(compressor.decompress(&compressed_data, out_size)?)
 }
