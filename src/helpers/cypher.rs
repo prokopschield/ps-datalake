@@ -54,3 +54,44 @@ pub fn decrypt(
 
     Ok(compressor.decompress(&compressed_data, out_size)?)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_encrypt_and_decrypt() -> Result<(), Box<dyn Error>> {
+        let original_data = b"Hello, World!";
+        let compressor = Compressor::new();
+
+        let encrypted_data = encrypt(original_data, &compressor)?;
+
+        let decrypted_data = decrypt(
+            &encrypted_data.bytes,
+            encrypted_data.key.as_bytes(),
+            &compressor,
+        )?;
+
+        assert_ne!(
+            original_data.to_vec(),
+            encrypted_data.bytes,
+            "Encryption should modify the data"
+        );
+
+        assert_eq!(
+            encrypted_data.bytes.len(),
+            31,
+            "Encrypted data should be 31 bytes long"
+        );
+
+        assert_eq!(
+            original_data.to_vec(),
+            decrypted_data,
+            "Decryption should reverse encryption"
+        );
+
+        Ok(())
+    }
+
+    // Add more test cases if needed
+}
