@@ -45,10 +45,14 @@ impl<'lt> DataStore<'lt> {
         Ok(mapping)
     }
 
+    pub fn get_header(mapping: &MemoryMapping<'lt>) -> &'lt mut DataStoreHeader {
+        unsafe { &mut *(mapping.roref.as_ptr() as *mut DataStoreHeader) }
+    }
+
     pub fn load(file_path: &'lt str, readonly: bool) -> Result<Self, PsDataLakeError> {
         let mapping = Self::load_mapping(file_path, readonly)?;
 
-        let header = unsafe { &mut *(mapping.roref.as_ptr() as *mut DataStoreHeader) };
+        let header = Self::get_header(&mapping);
 
         let index = unsafe {
             Mbuf::<'lt, (), usize>::at_offset_mut(
