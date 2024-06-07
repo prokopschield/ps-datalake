@@ -32,12 +32,21 @@ pub struct DataStore<'lt> {
 }
 
 impl<'lt> DataStore<'lt> {
-    pub fn load(file_path: &'lt str, readonly: bool) -> Result<Self, PsDataLakeError> {
+    pub fn load_mapping(
+        file_path: &'lt str,
+        readonly: bool,
+    ) -> Result<MemoryMapping<'lt>, PsDataLakeError> {
         let mapping: MemoryMapping<'lt> = if readonly {
             create_ro_mapping(file_path)?
         } else {
             create_rw_mapping(file_path)?
         };
+
+        Ok(mapping)
+    }
+
+    pub fn load(file_path: &'lt str, readonly: bool) -> Result<Self, PsDataLakeError> {
+        let mapping = Self::load_mapping(file_path, readonly)?;
 
         let header = unsafe { &mut *(mapping.roref.as_ptr() as *mut DataStoreHeader) };
 
