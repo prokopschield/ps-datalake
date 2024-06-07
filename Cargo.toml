@@ -13,10 +13,12 @@ opt-level = 3
 
 [dependencies]
 bitcode = "0.5.0"
-chacha20poly1305 = { version = "0.10.1", features = ["reduced-round", "std"] }
 libdeflater = "1.19.0"
 memmap = "0.7.0"
-ps-base64 = "0.1.0-1"
-ps-hash = "0.1.0-2"
+ps-base64 = "0.1.0-2"
+ps-datachunk = "0.1.0-2"
+ps-hash = "0.1.0-7"
+ps-mbuf = "0.1.0-2"
 rkyv = "0.7.44"
 serde = { version = "1.0.196", features = ["serde_derive"] }
+thiserror = "1.0.61"

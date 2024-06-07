@@ -1,15 +1,13 @@
-use std::{
-    error::Error,
-    sync::{Arc, Mutex},
-};
+use crate::error::PsDataLakeError;
+use std::sync::{Arc, Mutex};
 
-pub struct MemoryMapping {
+pub struct MemoryMapping<'lt> {
     pub owned_ro: Option<Arc<Mutex<memmap::Mmap>>>,
     pub owned_rw: Option<Arc<Mutex<memmap::MmapMut>>>,
-    pub roref: &'static [u8],
+    pub roref: &'lt [u8],
 }
 
-impl MemoryMapping {
+impl<'lt> MemoryMapping<'lt> {
     pub fn get_ro_slice(&self, offset: usize, length: usize) -> &[u8] {
         &self.roref[offset..offset + length]
     }
@@ -22,7 +20,7 @@ impl MemoryMapping {
     }
 }
 
-pub fn create_ro_mapping(file_path: &str) -> Result<MemoryMapping, Box<dyn Error>> {
+pub fn create_ro_mapping(file_path: &str) -> Result<MemoryMapping, PsDataLakeError> {
     let file = std::fs::OpenOptions::new().read(true).open(file_path)?;
 
     let mmap = unsafe { memmap::MmapOptions::new().map(&file)? };
@@ -38,7 +36,7 @@ pub fn create_ro_mapping(file_path: &str) -> Result<MemoryMapping, Box<dyn Error
     });
 }
 
-pub fn create_rw_mapping(file_path: &str) -> Result<MemoryMapping, Box<dyn Error>> {
+pub fn create_rw_mapping(file_path: &str) -> Result<MemoryMapping, PsDataLakeError> {
     let file = std::fs::OpenOptions::new()
         .read(true)
         .write(true)
