@@ -23,10 +23,14 @@ pub struct DataStoreHeader {
     pub data_offset: usize,
 }
 
+pub type DataStorePage<'lt> = Mbuf<'lt, [u8; 50], u8>;
+pub type DataStoreIndex<'lt> = Mbuf<'lt, (), u32>;
+pub type DataStorePager<'lt> = Mbuf<'lt, (), DataStorePage<'lt>>;
+
 pub struct DataStore<'lt> {
     pub header: &'lt mut DataStoreHeader,
-    pub index: &'lt mut Mbuf<'lt, (), usize>,
-    pub data: &'lt mut Mbuf<'lt, [u8; 50], u8>,
+    pub index: &'lt mut DataStoreIndex<'lt>,
+    pub data: &'lt mut DataStorePager<'lt>,
     pub mapping: MemoryMapping<'lt>,
     pub readonly: bool,
 }
@@ -54,18 +58,12 @@ impl<'lt> DataStore<'lt> {
 
         let header = Self::get_header(&mapping);
 
-        let index = unsafe {
-            Mbuf::<'lt, (), usize>::at_offset_mut(
-                mapping.roref.as_ptr() as *mut u8,
-                header.index_offset,
-            )
+        let index: &'lt mut DataStoreIndex = unsafe {
+            DataStoreIndex::at_offset_mut(mapping.roref.as_ptr() as *mut u8, header.index_offset)
         };
 
-        let data = unsafe {
-            Mbuf::<'lt, [u8; 50], u8>::at_offset_mut(
-                mapping.roref.as_ptr() as *mut u8,
-                header.data_offset,
-            )
+        let data: &'lt mut DataStorePager = unsafe {
+            DataStorePager::at_offset_mut(mapping.roref.as_ptr() as *mut u8, header.data_offset)
         };
 
         Ok(Self {
