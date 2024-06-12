@@ -11,16 +11,16 @@ pub struct DataStoreHeader {
     pub magic: [u8; 16],
 
     /// the largest prime number < index size
-    pub index_modulo: usize,
+    pub index_modulo: u32,
 
     /// the next usable offset
-    pub free_chunk: usize,
+    pub free_chunk: u32,
 
     /// byte offset of the index
-    pub index_offset: usize,
+    pub index_offset: u64,
 
     /// byte offset of chunks
-    pub data_offset: usize,
+    pub data_offset: u64,
 }
 
 pub type DataStorePage<'lt> = Mbuf<'lt, [u8; 50], u8>;
@@ -59,11 +59,17 @@ impl<'lt> DataStore<'lt> {
         let header = Self::get_header(&mapping);
 
         let index: &'lt mut DataStoreIndex = unsafe {
-            DataStoreIndex::at_offset_mut(mapping.roref.as_ptr() as *mut u8, header.index_offset)
+            DataStoreIndex::at_offset_mut(
+                mapping.roref.as_ptr() as *mut u8,
+                header.index_offset as usize,
+            )
         };
 
         let data: &'lt mut DataStorePager = unsafe {
-            DataStorePager::at_offset_mut(mapping.roref.as_ptr() as *mut u8, header.data_offset)
+            DataStorePager::at_offset_mut(
+                mapping.roref.as_ptr() as *mut u8,
+                header.data_offset as usize,
+            )
         };
 
         Ok(Self {
