@@ -1,5 +1,6 @@
 use super::helpers::mapping::{create_ro_mapping, create_rw_mapping, MemoryMapping};
 use crate::error::PsDataLakeError;
+use crate::helpers::sieve;
 use ps_mbuf::Mbuf;
 
 pub const PTR_SIZE: usize = 4;
@@ -69,6 +70,53 @@ impl<'lt> DataStore<'lt> {
             DataStorePager::at_offset_mut(
                 mapping.roref.as_ptr() as *mut u8,
                 header.data_offset as usize,
+            )
+        };
+
+        Ok(Self {
+            header,
+            index,
+            data,
+            mapping,
+            readonly,
+        })
+    }
+
+    pub fn init(file_path: &'lt str) -> Result<Self, PsDataLakeError> {
+        let readonly = false;
+        let mapping = Self::load_mapping(file_path, readonly)?;
+        let header = Self::get_header(&mapping);
+
+        let total_length = mapping.roref.len();
+        let index_length = total_length >> 10;
+        let index_offset = ps_datachunk::aligned::rup(std::mem::size_of::<DataStoreHeader>(), 12);
+        let data_offset = ps_datachunk::aligned::rup(
+            index_offset
+                + std::mem::size_of::<Mbuf<(), usize>>()
+                + index_length * std::mem::size_of::<usize>(),
+            12,
+        );
+        let data_length = total_length - data_offset;
+
+        header.magic = *b"DataLake\0\0\0\0\0\0\0\0";
+        header.index_modulo = sieve::get_le_prime(index_length as u32);
+        header.free_chunk = 0;
+        header.index_offset = index_offset as u64;
+        header.data_offset = data_offset as u64;
+
+        let index: &'lt mut DataStoreIndex = unsafe {
+            DataStoreIndex::init_at_ptr(
+                mapping.roref.as_ptr().add(index_offset) as *mut u8,
+                (),
+                index_length,
+            )
+        };
+
+        let data: &'lt mut DataStorePager = unsafe {
+            DataStorePager::init_at_ptr(
+                mapping.roref.as_ptr().add(data_offset) as *mut u8,
+                (),
+                data_length,
             )
         };
 
