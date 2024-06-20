@@ -1,6 +1,7 @@
 use super::helpers::mapping::{create_ro_mapping, create_rw_mapping, MemoryMapping};
 use crate::error::PsDataLakeError;
 use crate::helpers::sieve;
+use ps_datachunk::DataChunk;
 use ps_mbuf::Mbuf;
 
 pub const PTR_SIZE: usize = 4;
@@ -127,5 +128,14 @@ impl<'lt> DataStore<'lt> {
             mapping,
             readonly,
         })
+    }
+
+    pub fn get_chunk_by_index(&'lt self, index: usize) -> Result<DataChunk<'lt>, PsDataLakeError> {
+        let mbuf = self.data.get(index);
+        let mbuf = mbuf.ok_or(PsDataLakeError::RangeError)?;
+
+        let chunk = DataChunk::Mbuf(mbuf);
+
+        Ok(chunk)
     }
 }
