@@ -8,4 +8,8 @@ pub enum PsDataLakeError {
     PsDataChunkError(#[from] ps_datachunk::PsDataChunkError),
     #[error("Index out of range")]
     RangeError,
+    #[error("DataChunk not found")]
+    NotFound,
+    #[error("Index overflowed - too many index buckets")]
+    IndexBucketOverflow,
 }

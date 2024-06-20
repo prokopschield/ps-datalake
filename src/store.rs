@@ -1,6 +1,7 @@
 use super::helpers::mapping::{create_ro_mapping, create_rw_mapping, MemoryMapping};
 use crate::error::PsDataLakeError;
 use crate::helpers::sieve;
+use ps_datachunk::AbstractDataChunk;
 use ps_datachunk::DataChunk;
 use ps_mbuf::Mbuf;
 
@@ -137,5 +138,55 @@ impl<'lt> DataStore<'lt> {
         let chunk = DataChunk::Mbuf(mbuf);
 
         Ok(chunk)
+    }
+
+    pub fn calculate_index_bucket(hash: &[u8], index_modulo: u32) -> u32 {
+        ps_hash::checksum_u32(hash, hash.len() as u32) % index_modulo
+    }
+
+    pub fn get_bucket_index_chunk_by_hash(
+        &'lt self,
+        hash: &[u8],
+    ) -> Result<(u32, u32, Option<DataChunk<'lt>>), PsDataLakeError> {
+        let bucket = Self::calculate_index_bucket(hash, self.header.index_modulo);
+
+        for bucket in bucket..self.index.len() as u32 {
+            let index = self
+                .index
+                .get(bucket as usize)
+                .ok_or(PsDataLakeError::IndexBucketOverflow)?;
+
+            if *index == 0 {
+                return Ok((bucket, 0, None));
+            }
+
+            let chunk = self.get_chunk_by_index(*index as usize)?;
+
+            if chunk.hash() == hash {
+                return Ok((bucket, *index, Some(chunk)));
+            }
+        }
+
+        Err(PsDataLakeError::IndexBucketOverflow)
+    }
+
+    pub fn get_bucket_by_hash(&'lt self, hash: &[u8]) -> Result<u32, PsDataLakeError> {
+        let (bucket, _, _) = self.get_bucket_index_chunk_by_hash(hash)?;
+
+        Ok(bucket)
+    }
+
+    pub fn get_index_by_hash(&'lt self, hash: &[u8]) -> Result<u32, PsDataLakeError> {
+        let (_, index, chunk) = self.get_bucket_index_chunk_by_hash(hash)?;
+
+        chunk.ok_or(PsDataLakeError::NotFound)?;
+
+        Ok(index)
+    }
+
+    pub fn get_chunk_by_hash(&'lt self, hash: &[u8]) -> Result<DataChunk<'lt>, PsDataLakeError> {
+        let (_, _, chunk) = self.get_bucket_index_chunk_by_hash(hash)?;
+
+        Ok(chunk.ok_or(PsDataLakeError::NotFound)?)
     }
 }
