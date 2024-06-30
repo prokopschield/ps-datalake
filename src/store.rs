@@ -197,7 +197,7 @@ impl<'lt> DataStore<'lt> {
         Ok(chunk.ok_or(PsDataLakeError::NotFound)?)
     }
 
-    pub fn get_chunk_by_key(
+    pub fn get_chunk_by_hashkey(
         &'lt self,
         key: &[u8],
         compressor: Compressor,
