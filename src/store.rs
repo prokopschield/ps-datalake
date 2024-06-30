@@ -9,7 +9,7 @@ use ps_hash::Hash;
 use ps_mbuf::Mbuf;
 
 pub const PTR_SIZE: usize = 4;
-pub const CHUNK_SIZE: usize = 0x100;
+pub const CHUNK_SIZE: usize = std::mem::size_of::<DataStorePage>();
 
 #[repr(C)]
 pub struct DataStoreHeader {
@@ -29,7 +29,17 @@ pub struct DataStoreHeader {
     pub data_offset: u64,
 }
 
-pub type DataStorePage<'lt> = Mbuf<'lt, Hash, u8>;
+#[repr(C, align(256))]
+pub struct DataStorePage<'lt> {
+    mbuf: Mbuf<'lt, Hash, u8>,
+}
+
+impl<'lt> DataStorePage<'lt> {
+    pub fn mbuf(&'lt self) -> &'lt Mbuf<'lt, Hash, u8> {
+        &self.mbuf
+    }
+}
+
 pub type DataStoreIndex<'lt> = Mbuf<'lt, (), u32>;
 pub type DataStorePager<'lt> = Mbuf<'lt, (), DataStorePage<'lt>>;
 
@@ -138,10 +148,10 @@ impl<'lt> DataStore<'lt> {
         &'lt self,
         index: usize,
     ) -> Result<MbufDataChunk<'lt>, PsDataLakeError> {
-        let mbuf = self.data.get(index);
-        let mbuf = mbuf.ok_or(PsDataLakeError::RangeError)?;
-
-        Ok(mbuf.into())
+        match self.data.get(index) {
+            Some(page) => Ok(page.mbuf().into()),
+            None => Err(PsDataLakeError::RangeError),
+        }
     }
 
     pub fn calculate_index_bucket(hash: &[u8], index_modulo: u32) -> u32 {
