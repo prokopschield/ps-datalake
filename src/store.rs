@@ -200,7 +200,7 @@ impl<'lt> DataStore<'lt> {
     pub fn get_chunk_by_hashkey(
         &'lt self,
         key: &[u8],
-        compressor: Compressor,
+        compressor: &Compressor,
     ) -> Result<OwnedDataChunk, PsDataLakeError> {
         if key.len() != 100 {
             let data = ps_base64::decode(key);
@@ -211,7 +211,7 @@ impl<'lt> DataStore<'lt> {
         let (hash, key) = key.split_at(50);
 
         let encrypted = self.get_chunk_by_hash(hash)?;
-        let decrypted = encrypted.decrypt(key, &compressor)?;
+        let decrypted = encrypted.decrypt(key, compressor)?;
 
         Ok(decrypted)
     }
