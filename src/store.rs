@@ -1,8 +1,10 @@
 use super::helpers::mapping::{create_ro_mapping, create_rw_mapping, MemoryMapping};
 use crate::error::PsDataLakeError;
 use crate::helpers::sieve;
+use ps_datachunk::Compressor;
 use ps_datachunk::DataChunkTrait;
 use ps_datachunk::MbufDataChunk;
+use ps_datachunk::OwnedDataChunk;
 use ps_hash::Hash;
 use ps_mbuf::Mbuf;
 
@@ -193,5 +195,24 @@ impl<'lt> DataStore<'lt> {
         let (_, _, chunk) = self.get_bucket_index_chunk_by_hash(hash)?;
 
         Ok(chunk.ok_or(PsDataLakeError::NotFound)?)
+    }
+
+    pub fn get_chunk_by_key(
+        &'lt self,
+        key: &[u8],
+        compressor: Compressor,
+    ) -> Result<OwnedDataChunk, PsDataLakeError> {
+        if key.len() != 100 {
+            let data = ps_base64::decode(key);
+
+            return Ok(OwnedDataChunk::from_data(data));
+        }
+
+        let (hash, key) = key.split_at(50);
+
+        let encrypted = self.get_chunk_by_hash(hash)?;
+        let decrypted = encrypted.decrypt(key, &compressor)?;
+
+        Ok(decrypted)
     }
 }
