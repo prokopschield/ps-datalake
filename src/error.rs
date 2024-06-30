@@ -1,3 +1,4 @@
+use std::sync::PoisonError;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -12,4 +13,14 @@ pub enum PsDataLakeError {
     NotFound,
     #[error("Index overflowed - too many index buckets")]
     IndexBucketOverflow,
+    #[error("The store being written to is read-only")]
+    DataStoreNotRw,
+    #[error("Failed to acquire a poisoned mutex")]
+    MutexPoisonError,
+}
+
+impl<T> From<PoisonError<T>> for PsDataLakeError {
+    fn from(_: PoisonError<T>) -> Self {
+        Self::MutexPoisonError
+    }
 }
