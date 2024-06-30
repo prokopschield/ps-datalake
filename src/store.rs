@@ -1,8 +1,9 @@
 use super::helpers::mapping::{create_ro_mapping, create_rw_mapping, MemoryMapping};
 use crate::error::PsDataLakeError;
 use crate::helpers::sieve;
-use ps_datachunk::AbstractDataChunk;
-use ps_datachunk::DataChunk;
+use ps_datachunk::DataChunkTrait;
+use ps_datachunk::MbufDataChunk;
+use ps_hash::Hash;
 use ps_mbuf::Mbuf;
 
 pub const PTR_SIZE: usize = 4;
@@ -26,7 +27,7 @@ pub struct DataStoreHeader {
     pub data_offset: u64,
 }
 
-pub type DataStorePage<'lt> = Mbuf<'lt, [u8; 50], u8>;
+pub type DataStorePage<'lt> = Mbuf<'lt, Hash, u8>;
 pub type DataStoreIndex<'lt> = Mbuf<'lt, (), u32>;
 pub type DataStorePager<'lt> = Mbuf<'lt, (), DataStorePage<'lt>>;
 
@@ -131,13 +132,14 @@ impl<'lt> DataStore<'lt> {
         })
     }
 
-    pub fn get_chunk_by_index(&'lt self, index: usize) -> Result<DataChunk<'lt>, PsDataLakeError> {
+    pub fn get_chunk_by_index(
+        &'lt self,
+        index: usize,
+    ) -> Result<MbufDataChunk<'lt>, PsDataLakeError> {
         let mbuf = self.data.get(index);
         let mbuf = mbuf.ok_or(PsDataLakeError::RangeError)?;
 
-        let chunk = DataChunk::Mbuf(mbuf);
-
-        Ok(chunk)
+        Ok(mbuf.into())
     }
 
     pub fn calculate_index_bucket(hash: &[u8], index_modulo: u32) -> u32 {
@@ -147,7 +149,7 @@ impl<'lt> DataStore<'lt> {
     pub fn get_bucket_index_chunk_by_hash(
         &'lt self,
         hash: &[u8],
-    ) -> Result<(u32, u32, Option<DataChunk<'lt>>), PsDataLakeError> {
+    ) -> Result<(u32, u32, Option<MbufDataChunk<'lt>>), PsDataLakeError> {
         let bucket = Self::calculate_index_bucket(hash, self.header.index_modulo);
 
         for bucket in bucket..self.index.len() as u32 {
@@ -162,7 +164,7 @@ impl<'lt> DataStore<'lt> {
 
             let chunk = self.get_chunk_by_index(*index as usize)?;
 
-            if chunk.hash() == hash {
+            if chunk.hash_ref() == hash {
                 return Ok((bucket, *index, Some(chunk)));
             }
         }
@@ -184,7 +186,10 @@ impl<'lt> DataStore<'lt> {
         Ok(index)
     }
 
-    pub fn get_chunk_by_hash(&'lt self, hash: &[u8]) -> Result<DataChunk<'lt>, PsDataLakeError> {
+    pub fn get_chunk_by_hash(
+        &'lt self,
+        hash: &[u8],
+    ) -> Result<MbufDataChunk<'lt>, PsDataLakeError> {
         let (_, _, chunk) = self.get_bucket_index_chunk_by_hash(hash)?;
 
         Ok(chunk.ok_or(PsDataLakeError::NotFound)?)
