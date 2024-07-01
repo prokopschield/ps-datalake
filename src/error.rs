@@ -15,6 +15,8 @@ pub enum PsDataLakeError {
     IndexBucketOverflow,
     #[error("The store being written to is read-only")]
     DataStoreNotRw,
+    #[error("DataStore is out of space!")]
+    DataStoreOutOfSpace,
     #[error("Failed to acquire a poisoned mutex")]
     MutexPoisonError,
 }
