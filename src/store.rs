@@ -29,13 +29,15 @@ pub struct DataStoreHeader {
     pub data_offset: u64,
 }
 
+pub type DataStorePageMbuf<'lt> = Mbuf<'lt, Hash, u8>;
+
 #[repr(C, align(256))]
 pub struct DataStorePage<'lt> {
-    mbuf: Mbuf<'lt, Hash, u8>,
+    mbuf: DataStorePageMbuf<'lt>,
 }
 
 impl<'lt> DataStorePage<'lt> {
-    pub fn mbuf(&'lt self) -> &'lt Mbuf<'lt, Hash, u8> {
+    pub fn mbuf(&'lt self) -> &'lt DataStorePageMbuf {
         &self.mbuf
     }
 }
