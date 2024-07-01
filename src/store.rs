@@ -40,6 +40,9 @@ impl<'lt> DataStorePage<'lt> {
     pub fn mbuf(&'lt self) -> &'lt DataStorePageMbuf {
         &self.mbuf
     }
+    pub fn bytes_to_pages(bytes: usize) -> usize {
+        (bytes + std::mem::size_of::<DataStorePageMbuf>()).div_ceil(CHUNK_SIZE)
+    }
 }
 
 pub type DataStoreIndex<'lt> = Mbuf<'lt, (), u32>;
