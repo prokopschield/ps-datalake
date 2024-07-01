@@ -7,6 +7,8 @@ use ps_datachunk::MbufDataChunk;
 use ps_datachunk::OwnedDataChunk;
 use ps_hash::Hash;
 use ps_mbuf::Mbuf;
+use std::sync::Arc;
+use std::sync::Mutex;
 
 pub const PTR_SIZE: usize = 4;
 pub const CHUNK_SIZE: usize = std::mem::size_of::<DataStorePage>();
@@ -48,11 +50,22 @@ impl<'lt> DataStorePage<'lt> {
 pub type DataStoreIndex<'lt> = Mbuf<'lt, (), u32>;
 pub type DataStorePager<'lt> = Mbuf<'lt, (), DataStorePage<'lt>>;
 
-pub struct DataStore<'lt> {
+pub struct DataStoreShared<'lt> {
+    pub header: &'lt DataStoreHeader,
+    pub index: &'lt DataStoreIndex<'lt>,
+    pub pager: &'lt DataStorePager<'lt>,
+}
+
+pub struct DataStoreAtomic<'lt> {
     pub header: &'lt mut DataStoreHeader,
     pub index: &'lt mut DataStoreIndex<'lt>,
-    pub data: &'lt mut DataStorePager<'lt>,
+    pub pager: &'lt mut DataStorePager<'lt>,
     pub mapping: MemoryMapping<'lt>,
+}
+
+pub struct DataStore<'lt> {
+    pub shared: DataStoreShared<'lt>,
+    pub atomic: Arc<Mutex<DataStoreAtomic<'lt>>>,
     pub readonly: bool,
 }
 
@@ -70,42 +83,56 @@ impl<'lt> DataStore<'lt> {
         Ok(mapping)
     }
 
-    pub fn get_header(mapping: &MemoryMapping<'lt>) -> &'lt mut DataStoreHeader {
-        unsafe { &mut *(mapping.roref.as_ptr() as *mut DataStoreHeader) }
+    pub unsafe fn get_header(mapping: &MemoryMapping<'lt>) -> &'lt mut DataStoreHeader {
+        &mut *(mapping.roref.as_ptr() as *mut DataStoreHeader)
+    }
+
+    pub unsafe fn get_index(mapping: &MemoryMapping<'lt>) -> &'lt mut DataStoreIndex<'lt> {
+        DataStoreIndex::at_offset_mut(
+            mapping.roref.as_ptr() as *mut u8,
+            Self::get_header(mapping).index_offset as usize,
+        )
+    }
+
+    pub unsafe fn get_pager(mapping: &MemoryMapping<'lt>) -> &'lt mut DataStorePager<'lt> {
+        DataStorePager::at_offset_mut(
+            mapping.roref.as_ptr() as *mut u8,
+            Self::get_header(mapping).data_offset as usize,
+        )
     }
 
     pub fn load(file_path: &'lt str, readonly: bool) -> Result<Self, PsDataLakeError> {
         let mapping = Self::load_mapping(file_path, readonly)?;
 
-        let header = Self::get_header(&mapping);
-
-        let index: &'lt mut DataStoreIndex = unsafe {
-            DataStoreIndex::at_offset_mut(
-                mapping.roref.as_ptr() as *mut u8,
-                header.index_offset as usize,
-            )
+        let shared = DataStoreShared {
+            header: unsafe { Self::get_header(&mapping) },
+            index: unsafe { Self::get_index(&mapping) },
+            pager: unsafe { Self::get_pager(&mapping) },
         };
 
-        let data: &'lt mut DataStorePager = unsafe {
-            DataStorePager::at_offset_mut(
-                mapping.roref.as_ptr() as *mut u8,
-                header.data_offset as usize,
-            )
-        };
-
-        Ok(Self {
-            header,
-            index,
-            data,
+        let atomic = DataStoreAtomic {
+            header: unsafe { Self::get_header(&mapping) },
+            index: unsafe { Self::get_index(&mapping) },
+            pager: unsafe { Self::get_pager(&mapping) },
             mapping,
+        };
+
+        let atomic = Mutex::from(atomic);
+        let atomic = Arc::from(atomic);
+
+        let store = DataStore {
+            shared,
+            atomic,
             readonly,
-        })
+        };
+
+        Ok(store)
     }
 
     pub fn init(file_path: &'lt str) -> Result<Self, PsDataLakeError> {
         let readonly = false;
         let mapping = Self::load_mapping(file_path, readonly)?;
-        let header = Self::get_header(&mapping);
+        let header = unsafe { Self::get_header(&mapping) };
 
         let total_length = mapping.roref.len();
         let index_length = total_length >> 10;
@@ -116,7 +143,6 @@ impl<'lt> DataStore<'lt> {
                 + index_length * std::mem::size_of::<usize>(),
             12,
         );
-        let data_length = total_length - data_offset;
 
         header.magic = *b"DataLake\0\0\0\0\0\0\0\0";
         header.index_modulo = sieve::get_le_prime(index_length as u32);
@@ -124,36 +150,14 @@ impl<'lt> DataStore<'lt> {
         header.index_offset = index_offset as u64;
         header.data_offset = data_offset as u64;
 
-        let index: &'lt mut DataStoreIndex = unsafe {
-            DataStoreIndex::init_at_ptr(
-                mapping.roref.as_ptr().add(index_offset) as *mut u8,
-                (),
-                index_length,
-            )
-        };
-
-        let data: &'lt mut DataStorePager = unsafe {
-            DataStorePager::init_at_ptr(
-                mapping.roref.as_ptr().add(data_offset) as *mut u8,
-                (),
-                data_length,
-            )
-        };
-
-        Ok(Self {
-            header,
-            index,
-            data,
-            mapping,
-            readonly,
-        })
+        Self::load(file_path, false)
     }
 
     pub fn get_chunk_by_index(
         &'lt self,
         index: usize,
     ) -> Result<MbufDataChunk<'lt>, PsDataLakeError> {
-        match self.data.get(index) {
+        match self.shared.pager.get(index) {
             Some(page) => Ok(page.mbuf().into()),
             None => Err(PsDataLakeError::RangeError),
         }
@@ -167,10 +171,11 @@ impl<'lt> DataStore<'lt> {
         &'lt self,
         hash: &[u8],
     ) -> Result<(u32, u32, Option<MbufDataChunk<'lt>>), PsDataLakeError> {
-        let bucket = Self::calculate_index_bucket(hash, self.header.index_modulo);
+        let bucket = Self::calculate_index_bucket(hash, self.shared.header.index_modulo);
 
-        for bucket in bucket..self.index.len() as u32 {
+        for bucket in bucket..self.shared.index.len() as u32 {
             let index = self
+                .shared
                 .index
                 .get(bucket as usize)
                 .ok_or(PsDataLakeError::IndexBucketOverflow)?;
