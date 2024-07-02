@@ -133,6 +133,7 @@ impl<'lt> DataStore<'lt> {
 
         let total_length = mapping.len();
         let index_length = total_length >> 10;
+        let index_modulo = sieve::get_le_prime(index_length as u32);
         let index_offset = ps_datachunk::aligned::rup(std::mem::size_of::<DataStoreHeader>(), 12);
         let data_offset = ps_datachunk::aligned::rup(
             index_offset
@@ -141,8 +142,27 @@ impl<'lt> DataStore<'lt> {
             12,
         );
 
+        let arc = mapping.rw()?;
+        let mut map = arc.lock()?;
+
+        unsafe {
+            DataStoreIndex::init_at_ptr(
+                (&mut map[index_offset..index_offset]).as_mut_ptr(),
+                (),
+                index_length,
+            );
+        }
+
+        unsafe {
+            DataStorePager::init_at_ptr(
+                (&mut map[data_offset..data_offset]).as_mut_ptr(),
+                (),
+                (total_length - data_offset) / CHUNK_SIZE,
+            );
+        }
+
         header.magic = *b"DataLake\0\0\0\0\0\0\0\0";
-        header.index_modulo = sieve::get_le_prime(index_length as u32);
+        header.index_modulo = index_modulo;
         header.free_chunk = 0;
         header.index_offset = index_offset as u64;
         header.data_offset = data_offset as u64;
