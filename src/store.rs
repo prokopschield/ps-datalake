@@ -170,10 +170,7 @@ impl<'lt> DataStore<'lt> {
         Self::load(file_path, false)
     }
 
-    pub fn get_chunk_by_index(
-        &'lt self,
-        index: usize,
-    ) -> Result<MbufDataChunk<'lt>, PsDataLakeError> {
+    pub fn get_chunk_by_index(&self, index: usize) -> Result<MbufDataChunk, PsDataLakeError> {
         match self.shared.pager.get(index) {
             Some(page) => Ok(page.mbuf().into()),
             None => Err(PsDataLakeError::RangeError),
@@ -185,9 +182,9 @@ impl<'lt> DataStore<'lt> {
     }
 
     pub fn get_bucket_index_chunk_by_hash(
-        &'lt self,
+        &self,
         hash: &[u8],
-    ) -> Result<(u32, u32, Option<MbufDataChunk<'lt>>), PsDataLakeError> {
+    ) -> Result<(u32, u32, Option<MbufDataChunk>), PsDataLakeError> {
         let bucket = Self::calculate_index_bucket(hash, self.shared.header.index_modulo);
 
         for bucket in bucket..self.shared.index.len() as u32 {
