@@ -18,7 +18,7 @@ ps-base64 = "0.1.0-2"
 ps-datachunk = "0.1.0-6"
 ps-hash = "0.1.0-8"
 ps-mbuf = "0.1.0-3"
-ps-mmap = "0.1.0-4"
+ps-mmap = "0.1.0-5"
 rkyv = "0.7.44"
 serde = { version = "1.0.196", features = ["serde_derive"] }
 thiserror = "1.0.61"
