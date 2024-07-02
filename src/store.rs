@@ -1,4 +1,3 @@
-use super::helpers::mapping::{create_ro_mapping, create_rw_mapping, MemoryMapping};
 use crate::error::PsDataLakeError;
 use crate::helpers::sieve;
 use ps_datachunk::Compressor;
@@ -7,6 +6,8 @@ use ps_datachunk::MbufDataChunk;
 use ps_datachunk::OwnedDataChunk;
 use ps_hash::Hash;
 use ps_mbuf::Mbuf;
+use ps_mmap::MemoryMapping;
+use ps_mmap::MmapOptions;
 use std::sync::Arc;
 use std::sync::Mutex;
 
@@ -74,29 +75,25 @@ impl<'lt> DataStore<'lt> {
         file_path: &'lt str,
         readonly: bool,
     ) -> Result<MemoryMapping<'lt>, PsDataLakeError> {
-        let mapping: MemoryMapping<'lt> = if readonly {
-            create_ro_mapping(file_path)?
-        } else {
-            create_rw_mapping(file_path)?
-        };
+        let mapping = MemoryMapping::new_backed(&MmapOptions::new(), file_path, readonly)?;
 
         Ok(mapping)
     }
 
     pub unsafe fn get_header(mapping: &MemoryMapping<'lt>) -> &'lt mut DataStoreHeader {
-        &mut *(mapping.roref.as_ptr() as *mut DataStoreHeader)
+        &mut *(mapping.as_ptr() as *mut DataStoreHeader)
     }
 
     pub unsafe fn get_index(mapping: &MemoryMapping<'lt>) -> &'lt mut DataStoreIndex<'lt> {
         DataStoreIndex::at_offset_mut(
-            mapping.roref.as_ptr() as *mut u8,
+            mapping.as_ptr() as *mut u8,
             Self::get_header(mapping).index_offset as usize,
         )
     }
 
     pub unsafe fn get_pager(mapping: &MemoryMapping<'lt>) -> &'lt mut DataStorePager<'lt> {
         DataStorePager::at_offset_mut(
-            mapping.roref.as_ptr() as *mut u8,
+            mapping.as_ptr() as *mut u8,
             Self::get_header(mapping).data_offset as usize,
         )
     }
@@ -134,7 +131,7 @@ impl<'lt> DataStore<'lt> {
         let mapping = Self::load_mapping(file_path, readonly)?;
         let header = unsafe { Self::get_header(&mapping) };
 
-        let total_length = mapping.roref.len();
+        let total_length = mapping.len();
         let index_length = total_length >> 10;
         let index_offset = ps_datachunk::aligned::rup(std::mem::size_of::<DataStoreHeader>(), 12);
         let data_offset = ps_datachunk::aligned::rup(

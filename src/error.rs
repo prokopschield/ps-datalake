@@ -7,6 +7,8 @@ pub enum PsDataLakeError {
     IoError(#[from] std::io::Error),
     #[error(transparent)]
     PsDataChunkError(#[from] ps_datachunk::PsDataChunkError),
+    #[error(transparent)]
+    PsMmapError(#[from] ps_mmap::PsMmapError),
     #[error("Index out of range")]
     RangeError,
     #[error("DataChunk not found")]
