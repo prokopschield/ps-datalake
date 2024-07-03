@@ -160,8 +160,9 @@ impl<'lt> DataStore<'lt> {
                 (&mut map[index_offset..index_offset]).as_mut_ptr(),
                 (),
                 index_length,
-            );
+            )
         }
+        .fill(0);
 
         unsafe {
             DataStorePager::init_at_ptr(
