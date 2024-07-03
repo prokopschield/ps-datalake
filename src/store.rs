@@ -167,7 +167,15 @@ impl<'lt> DataStore<'lt> {
         header.index_offset = index_offset as u64;
         header.data_offset = data_offset as u64;
 
-        Self::load(file_path, false)
+        let store = Self::load(file_path, false)?;
+
+        store.put_opaque_chunk(&OwnedDataChunk::from_data_ref(
+            b"<< DATA SEGMENT BEGINS HERE >>",
+            // Chunk #0 cannot be accessed and is therefore reserved for metadata
+            // about this DataStore, the size of which shall not exceed 192 bytes
+        ))?;
+
+        Ok(store)
     }
 
     pub fn get_chunk_by_index(&self, index: usize) -> Result<MbufDataChunk, PsDataLakeError> {
