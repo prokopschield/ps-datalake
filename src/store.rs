@@ -249,4 +249,67 @@ impl<'lt> DataStore<'lt> {
 
         Ok(decrypted)
     }
+
+    /// Stores opaque data and returns a tuple containing the bucket, index, and DataChunk.
+    ///
+    /// # Arguments
+    ///
+    /// * `opaque_chunk` - A DataChunk representing the opaque data to be stored.
+    ///
+    /// # Returns
+    ///
+    /// A `Result` containing:
+    /// - `Ok((bucket, index, datachunk))` on success:
+    ///   - `bucket` (u32): The hashmap index of the chunk.
+    ///   - `index` (u32): The chunk's index withing the storage file.
+    ///   - `datachunk` (MbufDataChunk): The chunk of data that was stored.
+    /// - `Err(PsDataLakeError)` on failure:
+    ///   - An error of type `PsDataLakeError` indicating the reason for failure.
+    pub fn put_opaque_chunk<C: DataChunkTrait>(
+        &self,
+        opaque_chunk: &C,
+    ) -> Result<(u32, u32, MbufDataChunk), PsDataLakeError> {
+        let existing = self.get_bucket_index_chunk_by_hash(opaque_chunk.hash_ref())?;
+        let (bucket, index, existing) = existing;
+
+        if let Some(chunk) = existing {
+            return Ok((bucket, index, chunk));
+        }
+
+        if self.readonly {
+            Err(PsDataLakeError::DataStoreNotRw)?
+        }
+
+        let mut atomic = self.atomic.lock()?;
+
+        let next_free_chunk = atomic.header.free_chunk as usize;
+
+        let required_chunks = DataStorePage::bytes_to_pages(opaque_chunk.data_ref().len());
+
+        if (atomic.pager.len() - next_free_chunk) < required_chunks {
+            Err(PsDataLakeError::DataStoreOutOfSpace)?
+        }
+
+        let pointer = atomic
+            .pager
+            .get(next_free_chunk)
+            .ok_or(PsDataLakeError::RangeError)?
+            .mbuf() as *const _ as *mut u8;
+
+        unsafe {
+            DataStorePageMbuf::write_to_ptr(pointer, *opaque_chunk.hash(), opaque_chunk.data_ref())
+        };
+
+        atomic.header.free_chunk += required_chunks as u32;
+
+        atomic.index[bucket as usize] = next_free_chunk as u32;
+
+        drop(atomic);
+
+        Ok((
+            bucket,
+            next_free_chunk as u32,
+            self.get_chunk_by_index(next_free_chunk)?.into(),
+        ))
+    }
 }
