@@ -1,5 +1,6 @@
 use crate::error::PsDataLakeError;
 use crate::helpers::sieve;
+use ps_datachunk::aligned::rup;
 use ps_datachunk::Compressor;
 use ps_datachunk::DataChunkTrait;
 use ps_datachunk::MbufDataChunk;
@@ -126,21 +127,30 @@ impl<'lt> DataStore<'lt> {
         Ok(store)
     }
 
+    /// store_length_in_bytes -> (index_offset, index_length, data_offset)
+    /// - this should only be used when initializing a new DataStore
+    pub fn derive_index_bounds(total_len: usize) -> (usize, usize, usize) {
+        let offset = std::mem::size_of::<DataStoreHeader>();
+        let ihead = std::mem::size_of::<DataStoreIndex>();
+        let phead = std::mem::size_of::<DataStorePager>();
+        let base_items = 1 + (total_len >> 10);
+        let rup_items = rup(base_items, 10);
+        let sub_bytes = offset + ihead + phead;
+        let sub_items = sub_bytes / std::mem::size_of::<u32>();
+        let index_length = rup_items - sub_items;
+        let data_offset = offset + ihead + index_length * std::mem::size_of::<u32>();
+
+        (offset, index_length, data_offset)
+    }
+
     pub fn init(file_path: &'lt str) -> Result<Self, PsDataLakeError> {
         let readonly = false;
         let mapping = Self::load_mapping(file_path, readonly)?;
         let header = unsafe { Self::get_header(&mapping) };
 
         let total_length = mapping.len();
-        let index_length = total_length >> 10;
+        let (index_offset, index_length, data_offset) = Self::derive_index_bounds(total_length);
         let index_modulo = sieve::get_le_prime(index_length as u32);
-        let index_offset = ps_datachunk::aligned::rup(std::mem::size_of::<DataStoreHeader>(), 12);
-        let data_offset = ps_datachunk::aligned::rup(
-            index_offset
-                + std::mem::size_of::<Mbuf<(), usize>>()
-                + index_length * std::mem::size_of::<usize>(),
-            12,
-        );
 
         let arc = mapping.rw()?;
         let mut map = arc.lock()?;
