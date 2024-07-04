@@ -23,6 +23,8 @@ pub enum PsDataLakeError {
     MutexPoisonError,
 }
 
+pub type Result<T> = std::result::Result<T, PsDataLakeError>;
+
 impl<T> From<PoisonError<T>> for PsDataLakeError {
     fn from(_: PoisonError<T>) -> Self {
         Self::MutexPoisonError

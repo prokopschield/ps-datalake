@@ -1,4 +1,5 @@
 use crate::error::PsDataLakeError;
+use crate::error::Result;
 use crate::helpers::sieve;
 use ps_datachunk::aligned::rup;
 use ps_datachunk::Compressor;
@@ -72,10 +73,7 @@ pub struct DataStore<'lt> {
 }
 
 impl<'lt> DataStore<'lt> {
-    pub fn load_mapping(
-        file_path: &'lt str,
-        readonly: bool,
-    ) -> Result<MemoryMapping<'lt>, PsDataLakeError> {
+    pub fn load_mapping(file_path: &'lt str, readonly: bool) -> Result<MemoryMapping<'lt>> {
         let mapping = MemoryMapping::new_backed(&MmapOptions::new(), file_path, readonly)?;
 
         Ok(mapping)
@@ -99,7 +97,7 @@ impl<'lt> DataStore<'lt> {
         )
     }
 
-    pub fn load(file_path: &'lt str, readonly: bool) -> Result<Self, PsDataLakeError> {
+    pub fn load(file_path: &'lt str, readonly: bool) -> Result<Self> {
         let mapping = Self::load_mapping(file_path, readonly)?;
 
         let shared = DataStoreShared {
@@ -143,7 +141,7 @@ impl<'lt> DataStore<'lt> {
         (offset, index_length, data_offset)
     }
 
-    pub fn init(file_path: &'lt str) -> Result<Self, PsDataLakeError> {
+    pub fn init(file_path: &'lt str) -> Result<Self> {
         let readonly = false;
         let mapping = Self::load_mapping(file_path, readonly)?;
         let header = unsafe { Self::get_header(&mapping) };
@@ -189,7 +187,7 @@ impl<'lt> DataStore<'lt> {
         Ok(store)
     }
 
-    pub fn get_chunk_by_index(&self, index: usize) -> Result<MbufDataChunk, PsDataLakeError> {
+    pub fn get_chunk_by_index(&self, index: usize) -> Result<MbufDataChunk> {
         match self.shared.pager.get(index) {
             Some(page) => Ok(page.mbuf().into()),
             None => Err(PsDataLakeError::RangeError),
@@ -203,7 +201,7 @@ impl<'lt> DataStore<'lt> {
     pub fn get_bucket_index_chunk_by_hash(
         &self,
         hash: &[u8],
-    ) -> Result<(u32, u32, Option<MbufDataChunk>), PsDataLakeError> {
+    ) -> Result<(u32, u32, Option<MbufDataChunk>)> {
         let bucket = Self::calculate_index_bucket(hash, self.shared.header.index_modulo);
 
         for bucket in bucket..self.shared.index.len() as u32 {
@@ -227,13 +225,13 @@ impl<'lt> DataStore<'lt> {
         Err(PsDataLakeError::IndexBucketOverflow)
     }
 
-    pub fn get_bucket_by_hash(&'lt self, hash: &[u8]) -> Result<u32, PsDataLakeError> {
+    pub fn get_bucket_by_hash(&'lt self, hash: &[u8]) -> Result<u32> {
         let (bucket, _, _) = self.get_bucket_index_chunk_by_hash(hash)?;
 
         Ok(bucket)
     }
 
-    pub fn get_index_by_hash(&'lt self, hash: &[u8]) -> Result<u32, PsDataLakeError> {
+    pub fn get_index_by_hash(&'lt self, hash: &[u8]) -> Result<u32> {
         let (_, index, chunk) = self.get_bucket_index_chunk_by_hash(hash)?;
 
         chunk.ok_or(PsDataLakeError::NotFound)?;
@@ -241,10 +239,7 @@ impl<'lt> DataStore<'lt> {
         Ok(index)
     }
 
-    pub fn get_chunk_by_hash(
-        &'lt self,
-        hash: &[u8],
-    ) -> Result<MbufDataChunk<'lt>, PsDataLakeError> {
+    pub fn get_chunk_by_hash(&'lt self, hash: &[u8]) -> Result<MbufDataChunk<'lt>> {
         let (_, _, chunk) = self.get_bucket_index_chunk_by_hash(hash)?;
 
         Ok(chunk.ok_or(PsDataLakeError::NotFound)?)
@@ -254,7 +249,7 @@ impl<'lt> DataStore<'lt> {
         &'lt self,
         key: &[u8],
         compressor: &Compressor,
-    ) -> Result<OwnedDataChunk, PsDataLakeError> {
+    ) -> Result<OwnedDataChunk> {
         if key.len() != 100 {
             let data = ps_base64::decode(key);
 
@@ -287,7 +282,7 @@ impl<'lt> DataStore<'lt> {
     pub fn put_opaque_chunk<C: DataChunkTrait>(
         &self,
         opaque_chunk: &C,
-    ) -> Result<(u32, u32, MbufDataChunk), PsDataLakeError> {
+    ) -> Result<(u32, u32, MbufDataChunk)> {
         let existing = self.get_bucket_index_chunk_by_hash(opaque_chunk.hash_ref())?;
         let (bucket, index, existing) = existing;
 
