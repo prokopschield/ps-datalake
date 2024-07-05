@@ -20,6 +20,10 @@ pub enum Hkey {
 }
 
 impl Hkey {
+    pub fn from_raw(value: &[u8]) -> Self {
+        Self::Raw(value.into())
+    }
+
     pub fn from_base64_slice(value: &[u8]) -> Self {
         match std::str::from_utf8(value) {
             Ok(str) => Self::Base64(str.into()),
