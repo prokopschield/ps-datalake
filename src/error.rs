@@ -8,6 +8,8 @@ pub enum PsDataLakeError {
     #[error(transparent)]
     PsDataChunkError(#[from] ps_datachunk::PsDataChunkError),
     #[error(transparent)]
+    PsHashError(#[from] ps_hash::PsHashError),
+    #[error(transparent)]
     PsMmapError(#[from] ps_mmap::PsMmapError),
     #[error("Index out of range")]
     RangeError,
@@ -21,6 +23,10 @@ pub enum PsDataLakeError {
     DataStoreOutOfSpace,
     #[error("Failed to acquire a poisoned mutex")]
     MutexPoisonError,
+    #[error("Failed to store data")]
+    StorageFailure,
+    #[error("Invalid input format")]
+    FormatError,
 }
 
 pub type Result<T> = std::result::Result<T, PsDataLakeError>;
