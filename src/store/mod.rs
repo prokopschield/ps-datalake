@@ -1,3 +1,4 @@
+pub mod hkey;
 use crate::error::PsDataLakeError;
 use crate::error::Result;
 use crate::helpers::sieve;
