@@ -115,7 +115,7 @@ impl From<&Hkey> for String {
         match value {
             Hkey::Raw(raw) => format!("B{}", ps_base64::encode(raw)),
             Hkey::Base64(base64) => format!("B{}", base64),
-            Hkey::Direct(hash) => format!("D{}", hash),
+            Hkey::Direct(hash) => hash.to_string(),
             Hkey::Encrypted(hash, key) => format!("E{}{}", hash, key),
             Hkey::ListRef(hash, key) => format!("R{}{}", hash, key),
             Hkey::List(list) => format!(
