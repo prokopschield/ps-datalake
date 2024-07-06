@@ -109,6 +109,18 @@ impl Hkey {
             _ => Self::from_base64_slice(value),
         }
     }
+
+    pub fn format_list(list: &[Hkey]) -> String {
+        format!(
+            "[{}]",
+            list.into_iter().fold(String::new(), |a, i| {
+                match a.len() {
+                    0 => format!("{}", i),
+                    _ => format!("{},{}", a, i),
+                }
+            })
+        )
+    }
 }
 
 impl From<&Hkey> for String {
@@ -119,15 +131,7 @@ impl From<&Hkey> for String {
             Hkey::Direct(hash) => hash.to_string(),
             Hkey::Encrypted(hash, key) => format!("E{}{}", hash, key),
             Hkey::ListRef(hash, key) => format!("R{}{}", hash, key),
-            Hkey::List(list) => format!(
-                "[{}]",
-                list.into_iter().fold(String::new(), |a, i| {
-                    match a.len() {
-                        0 => format!("{}", i),
-                        _ => format!("{},{}", a, i),
-                    }
-                })
-            ),
+            Hkey::List(list) => Hkey::format_list(list),
         }
     }
 }
