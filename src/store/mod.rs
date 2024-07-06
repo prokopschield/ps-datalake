@@ -63,6 +63,7 @@ impl<'lt> DataStorePage<'lt> {
 pub type DataStoreIndex<'lt> = Mbuf<'lt, (), u32>;
 pub type DataStorePager<'lt> = Mbuf<'lt, (), DataStorePage<'lt>>;
 
+#[derive(Clone)]
 pub struct DataStoreShared<'lt> {
     pub header: &'lt DataStoreHeader,
     pub index: &'lt DataStoreIndex<'lt>,
@@ -76,6 +77,7 @@ pub struct DataStoreAtomic<'lt> {
     pub mapping: MemoryMapping<'lt>,
 }
 
+#[derive(Clone)]
 pub struct DataStore<'lt> {
     shared: DataStoreShared<'lt>,
     atomic: Arc<Mutex<DataStoreAtomic<'lt>>>,
