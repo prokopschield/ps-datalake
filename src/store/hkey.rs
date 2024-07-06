@@ -130,7 +130,7 @@ impl From<&Hkey> for String {
             Hkey::Base64(base64) => format!("B{}", base64),
             Hkey::Direct(hash) => hash.to_string(),
             Hkey::Encrypted(hash, key) => format!("E{}{}", hash, key),
-            Hkey::ListRef(hash, key) => format!("R{}{}", hash, key),
+            Hkey::ListRef(hash, key) => format!("L{}{}", hash, key),
             Hkey::List(list) => Hkey::format_list(list),
         }
     }
