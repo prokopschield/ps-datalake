@@ -5,6 +5,7 @@ use crate::helpers::sieve;
 use hkey::Hkey;
 use parking_lot::Mutex;
 use ps_datachunk::aligned::rup;
+use ps_datachunk::BorrowedDataChunk;
 use ps_datachunk::Compressor;
 use ps_datachunk::DataChunk;
 use ps_datachunk::DataChunkTrait;
@@ -16,10 +17,14 @@ use ps_mmap::MemoryMapping;
 use ps_mmap::MmapOptions;
 use rayon::iter::IntoParallelRefIterator;
 use rayon::iter::ParallelIterator;
+use rayon::slice::ParallelSlice;
 use std::sync::Arc;
 
 pub const PTR_SIZE: usize = 4;
 pub const CHUNK_SIZE: usize = std::mem::size_of::<DataStorePage>();
+pub const DATA_CHUNK_MIN_SIZE: usize = 75;
+pub const DATA_CHUNK_MAX_RAW_SIZE: usize = 4096;
+pub const DATA_CHUNK_MAX_ENCRYPTED_SIZE: usize = 4117;
 
 #[repr(C)]
 pub struct DataStoreHeader {
@@ -353,5 +358,105 @@ impl<'lt> DataStore<'lt> {
             next_free_chunk as u32,
             self.get_chunk_by_index(next_free_chunk)?.into(),
         ))
+    }
+
+    pub fn put_encrypted_chunk<C: DataChunkTrait>(
+        &'lt self,
+        chunk: &C,
+        compressor: &Compressor,
+    ) -> Result<Hkey> {
+        let length = chunk.data_ref().len();
+
+        if length < DATA_CHUNK_MIN_SIZE || length > DATA_CHUNK_MAX_ENCRYPTED_SIZE {
+            return self.put_chunk(chunk, compressor);
+        }
+
+        let encrypted = chunk.encrypt(compressor)?;
+
+        if encrypted.data_ref().len() > length {
+            Ok(self.put_opaque_chunk(chunk)?.2.hash().into())
+        } else {
+            let chunk = self.put_opaque_chunk(&encrypted.chunk)?.2;
+
+            if chunk.hash_ref() != encrypted.chunk.hash_ref() {
+                Err(PsDataLakeError::StorageFailure)?
+            }
+
+            Ok((encrypted.hash().into(), encrypted.key).into())
+        }
+    }
+
+    pub fn put_large_chunk<C: DataChunkTrait>(
+        &'lt self,
+        chunk: &C,
+        compressor: &Compressor,
+    ) -> Result<Hkey> {
+        self.put_large_blob(chunk.data_ref(), compressor)
+    }
+
+    pub fn put_chunk<C: DataChunkTrait>(
+        &'lt self,
+        chunk: &C,
+        compressor: &Compressor,
+    ) -> Result<Hkey> {
+        if chunk.data_ref().len() < DATA_CHUNK_MIN_SIZE {
+            return Ok(Hkey::from_raw(chunk.data_ref()));
+        }
+
+        if chunk.data_ref().len() > DATA_CHUNK_MAX_RAW_SIZE {
+            return self.put_large_chunk(chunk, compressor);
+        }
+
+        let encrypted = chunk.encrypt(compressor)?;
+
+        let stored_chunk = self.put_opaque_chunk(&encrypted.chunk)?.2;
+
+        if stored_chunk.hash_ref() != encrypted.hash_ref() {
+            Err(PsDataLakeError::StorageFailure)?
+        }
+
+        Ok(Hkey::Encrypted(encrypted.chunk.hash(), encrypted.key))
+    }
+
+    pub fn put_large_blob(&'lt self, blob: &[u8], compressor: &Compressor) -> Result<Hkey> {
+        // sanity check
+        if blob.len() < DATA_CHUNK_MAX_RAW_SIZE {
+            return self.put_blob(blob, compressor);
+        }
+
+        // get parallel iterator
+        let chunks = blob.par_chunks(DATA_CHUNK_MAX_RAW_SIZE);
+
+        // store each chunk
+        let chunk_keys: Vec<Result<Hkey>> = chunks
+            .map(|blob| self.put_blob(blob, &Compressor::new()))
+            .collect();
+
+        // transform Vec<Result<Hkey>> into Result<Vec<Hkey>>
+        let chunks: Result<Vec<Hkey>> = chunk_keys.into_iter().collect();
+
+        // generate [c1,c2,..,cN]
+        let list = Hkey::format_list(&chunks?);
+
+        // store list
+        let hkey = self.put_blob(list.as_bytes(), compressor)?;
+
+        // transform Hkey::Encrypted into Hkey::ListRef
+        let hkey = match hkey {
+            Hkey::Encrypted(hash, key) => Hkey::ListRef(hash, key),
+            _ => Err(PsDataLakeError::StorageFailure)?, // this should never happen
+        };
+
+        Ok(hkey)
+    }
+
+    pub fn put_blob(&'lt self, blob: &[u8], compressor: &Compressor) -> Result<Hkey> {
+        if blob.len() < DATA_CHUNK_MIN_SIZE {
+            Ok(Hkey::from_raw(blob))
+        } else if blob.len() > DATA_CHUNK_MAX_RAW_SIZE {
+            self.put_large_blob(blob, compressor)
+        } else {
+            self.put_chunk(&BorrowedDataChunk::from_data(blob), compressor)
+        }
     }
 }
