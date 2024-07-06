@@ -1,5 +1,6 @@
 use crate::error::PsDataLakeError;
 use crate::error::Result;
+use ps_datachunk::HashCow;
 use ps_hash::Hash;
 use std::sync::Arc;
 
@@ -167,6 +168,12 @@ impl From<&Hash> for Hkey {
     }
 }
 
+impl<'a> From<HashCow<'a>> for Hkey {
+    fn from(hash: HashCow<'a>) -> Self {
+        hash.to_arc().into()
+    }
+}
+
 impl From<(Arc<Hash>, Arc<Hash>)> for Hkey {
     fn from((hash, key): (Arc<Hash>, Arc<Hash>)) -> Self {
         Self::Encrypted(hash, key)
@@ -182,5 +189,11 @@ impl From<(Hash, Hash)> for Hkey {
 impl From<(&Hash, &Hash)> for Hkey {
     fn from((hash, key): (&Hash, &Hash)) -> Self {
         Self::from((*hash, *key))
+    }
+}
+
+impl<'a, 'b> From<(HashCow<'a>, HashCow<'b>)> for Hkey {
+    fn from((hash, key): (HashCow<'a>, HashCow<'b>)) -> Self {
+        (hash.to_arc(), key.to_arc()).into()
     }
 }
