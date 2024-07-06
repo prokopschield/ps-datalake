@@ -14,6 +14,7 @@ opt-level = 3
 [dependencies]
 bitcode = "0.5.0"
 libdeflater = "1.19.0"
+parking_lot = "0.12.3"
 ps-base64 = "0.1.0-2"
 ps-datachunk = "0.1.0-6"
 ps-hash = "0.1.0-8"

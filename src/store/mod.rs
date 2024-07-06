@@ -3,6 +3,7 @@ use crate::error::PsDataLakeError;
 use crate::error::Result;
 use crate::helpers::sieve;
 use hkey::Hkey;
+use parking_lot::Mutex;
 use ps_datachunk::aligned::rup;
 use ps_datachunk::Compressor;
 use ps_datachunk::DataChunk;
@@ -16,7 +17,6 @@ use ps_mmap::MmapOptions;
 use rayon::iter::IntoParallelRefIterator;
 use rayon::iter::ParallelIterator;
 use std::sync::Arc;
-use std::sync::Mutex;
 
 pub const PTR_SIZE: usize = 4;
 pub const CHUNK_SIZE: usize = std::mem::size_of::<DataStorePage>();
@@ -322,7 +322,7 @@ impl<'lt> DataStore<'lt> {
             Err(PsDataLakeError::DataStoreNotRw)?
         }
 
-        let mut atomic = self.atomic.lock()?;
+        let mut atomic = self.atomic.lock();
 
         let next_free_chunk = atomic.header.free_chunk as usize;
 
