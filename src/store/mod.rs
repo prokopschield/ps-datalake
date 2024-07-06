@@ -2,8 +2,10 @@ pub mod hkey;
 use crate::error::PsDataLakeError;
 use crate::error::Result;
 use crate::helpers::sieve;
+use hkey::Hkey;
 use ps_datachunk::aligned::rup;
 use ps_datachunk::Compressor;
+use ps_datachunk::DataChunk;
 use ps_datachunk::DataChunkTrait;
 use ps_datachunk::MbufDataChunk;
 use ps_datachunk::OwnedDataChunk;
@@ -11,6 +13,8 @@ use ps_hash::Hash;
 use ps_mbuf::Mbuf;
 use ps_mmap::MemoryMapping;
 use ps_mmap::MmapOptions;
+use rayon::iter::IntoParallelRefIterator;
+use rayon::iter::ParallelIterator;
 use std::sync::Arc;
 use std::sync::Mutex;
 
@@ -246,23 +250,46 @@ impl<'lt> DataStore<'lt> {
         Ok(chunk.ok_or(PsDataLakeError::NotFound)?)
     }
 
-    pub fn get_chunk_by_hashkey(
-        &'lt self,
-        key: &[u8],
-        compressor: &Compressor,
-    ) -> Result<OwnedDataChunk> {
-        if key.len() != 100 {
-            let data = ps_base64::decode(key);
+    pub fn get_chunk_by_hkey(&'lt self, key: &Hkey, compressor: &Compressor) -> Result<DataChunk> {
+        match key {
+            Hkey::Raw(raw) => Ok(OwnedDataChunk::from_data_ref(raw).into()),
+            Hkey::Base64(base64) => {
+                Ok(OwnedDataChunk::from_data(ps_base64::decode(base64.as_bytes())).into())
+            }
+            Hkey::Direct(hash) => Ok(self.get_chunk_by_hash(hash.as_bytes())?.into()),
+            Hkey::Encrypted(hash, key) => {
+                let chunk = self.get_chunk_by_hash(hash.as_bytes())?;
+                let decrypted = chunk.decrypt(key.as_bytes(), compressor)?;
 
-            return Ok(OwnedDataChunk::from_data(data));
+                Ok(decrypted.into())
+            }
+            Hkey::ListRef(hash, key) => {
+                let hkey = Hkey::Encrypted(hash.clone(), key.clone());
+                let long = Self::get_chunk_by_hkey(self, &hkey, compressor)?;
+                let hkey = Hkey::parse(long.data_ref());
+
+                self.get_chunk_by_hkey(&hkey, compressor)
+            }
+            Hkey::List(list) => {
+                // Parallel fetching of chunks
+                let chunks: Vec<Result<DataChunk>> = list
+                    .par_iter()
+                    .map(|hkey| self.get_chunk_by_hkey(hkey, &Compressor::new()))
+                    .collect();
+
+                // Collect and concatenate data from chunks
+                let buffer: Result<Vec<u8>> =
+                    chunks.into_iter().try_fold(vec![], |mut buffer, chunk| {
+                        buffer.extend_from_slice(chunk?.data_ref());
+                        Ok(buffer)
+                    });
+
+                // Convert the concatenated data into an OwnedDataChunk
+                let chunk = OwnedDataChunk::from_data(buffer?);
+
+                Ok(chunk.into())
+            }
         }
-
-        let (hash, key) = key.split_at(50);
-
-        let encrypted = self.get_chunk_by_hash(hash)?;
-        let decrypted = encrypted.decrypt(key, compressor)?;
-
-        Ok(decrypted)
     }
 
     /// Stores opaque data and returns a tuple containing the bucket, index, and DataChunk.
