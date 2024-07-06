@@ -77,9 +77,9 @@ pub struct DataStoreAtomic<'lt> {
 }
 
 pub struct DataStore<'lt> {
-    pub shared: DataStoreShared<'lt>,
-    pub atomic: Arc<Mutex<DataStoreAtomic<'lt>>>,
-    pub readonly: bool,
+    shared: DataStoreShared<'lt>,
+    atomic: Arc<Mutex<DataStoreAtomic<'lt>>>,
+    readonly: bool,
 }
 
 impl<'lt> DataStore<'lt> {
