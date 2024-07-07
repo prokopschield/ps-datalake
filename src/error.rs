@@ -12,9 +12,9 @@ pub enum PsDataLakeError {
     #[error(transparent)]
     PsMmapError(#[from] ps_mmap::PsMmapError),
     #[error(transparent)]
-    TomlSerError(#[from] toml::ser::Error),
+    TomlSerError(#[from] Box<toml::ser::Error>),
     #[error(transparent)]
-    TomlDeError(#[from] toml::de::Error),
+    TomlDeError(#[from] Box<toml::de::Error>),
     #[error("Index out of range")]
     RangeError,
     #[error("DataChunk not found")]
@@ -38,5 +38,17 @@ pub type Result<T> = std::result::Result<T, PsDataLakeError>;
 impl<T> From<PoisonError<T>> for PsDataLakeError {
     fn from(_: PoisonError<T>) -> Self {
         Self::MutexPoisonError
+    }
+}
+
+impl From<toml::ser::Error> for PsDataLakeError {
+    fn from(value: toml::ser::Error) -> Self {
+        Self::TomlSerError(Box::from(value))
+    }
+}
+
+impl From<toml::de::Error> for PsDataLakeError {
+    fn from(value: toml::de::Error) -> Self {
+        Self::TomlDeError(Box::from(value))
     }
 }
