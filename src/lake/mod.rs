@@ -5,6 +5,7 @@ use crate::store::hkey::Hkey;
 use crate::store::DataStore;
 use ps_datachunk::Compressor;
 use ps_datachunk::DataChunk;
+use ps_datachunk::MbufDataChunk;
 use ps_datachunk::OwnedDataChunk;
 use rayon::iter::IntoParallelIterator;
 use rayon::iter::ParallelIterator;
@@ -20,6 +21,22 @@ pub struct DataLake<'lt> {
 }
 
 impl<'lt> DataLake<'lt> {
+    pub fn get_encrypted_chunk(&'lt self, hash: &[u8]) -> Result<MbufDataChunk> {
+        let mut error = PsDataLakeError::NotFound;
+
+        for store in &self.stores.readable {
+            match store.get_chunk_by_hash(hash) {
+                Ok(chunk) => return Ok(chunk),
+                Err(err) => match err {
+                    PsDataLakeError::NotFound => (),
+                    _ => error = err,
+                },
+            }
+        }
+
+        Err(error)
+    }
+
     pub fn get_chunk_by_hkey(&'lt self, hkey: &Hkey, compressor: &Compressor) -> Result<DataChunk> {
         let chunk: DataChunk = match hkey {
             Hkey::Raw(raw) => OwnedDataChunk::from_data_ref(raw).into(),
