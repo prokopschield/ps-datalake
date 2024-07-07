@@ -1,12 +1,15 @@
 pub mod config;
+pub mod util;
 use crate::error::PsDataLakeError;
 use crate::error::Result;
 use crate::store::DataStore;
+use config::DataLakeConfig;
 use ps_datachunk::Compressor;
 use ps_datachunk::DataChunk;
 use ps_datachunk::DataChunkTrait;
 use ps_datachunk::MbufDataChunk;
 use ps_hkey::Hkey;
+use util::verify_magic;
 
 #[derive(Clone, Default)]
 pub struct DataLakeStores<'lt> {
@@ -15,10 +18,38 @@ pub struct DataLakeStores<'lt> {
 }
 
 pub struct DataLake<'lt> {
+    pub config: DataLakeConfig,
     pub stores: DataLakeStores<'lt>,
 }
 
 impl<'lt> DataLake<'lt> {
+    pub fn init(config: DataLakeConfig) -> Result<Self> {
+        let mut stores = DataLakeStores::default();
+
+        for entry in &config.store {
+            if entry.readonly {
+                let store = DataStore::load(&entry.filename, true)?;
+
+                stores.readable.push(store);
+
+                continue;
+            }
+
+            let store = if verify_magic(&entry.filename)? {
+                DataStore::load(&entry.filename, false)
+            } else {
+                DataStore::init(&entry.filename)
+            }?;
+
+            stores.readable.push(store.clone());
+            stores.writable.push(store);
+        }
+
+        let lake = Self { config, stores };
+
+        Ok(lake)
+    }
+
     pub fn get_encrypted_chunk(&'lt self, hash: &[u8]) -> Result<MbufDataChunk> {
         let mut error = PsDataLakeError::NotFound;
 
