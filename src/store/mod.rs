@@ -85,7 +85,7 @@ pub struct DataStore<'lt> {
 }
 
 impl<'lt> DataStore<'lt> {
-    pub fn load_mapping(file_path: &'lt str, readonly: bool) -> Result<MemoryMapping<'lt>> {
+    pub fn load_mapping(file_path: &str, readonly: bool) -> Result<MemoryMapping<'lt>> {
         let mapping = MemoryMapping::new_backed(&MmapOptions::new(), file_path, readonly)?;
 
         Ok(mapping)
@@ -109,7 +109,7 @@ impl<'lt> DataStore<'lt> {
         )
     }
 
-    pub fn load(file_path: &'lt str, readonly: bool) -> Result<Self> {
+    pub fn load(file_path: &str, readonly: bool) -> Result<Self> {
         let mapping = Self::load_mapping(file_path, readonly)?;
 
         let shared = DataStoreShared {
@@ -153,7 +153,7 @@ impl<'lt> DataStore<'lt> {
         (offset, index_length, data_offset)
     }
 
-    pub fn init(file_path: &'lt str) -> Result<Self> {
+    pub fn init(file_path: &str) -> Result<Self> {
         let readonly = false;
         let mapping = Self::load_mapping(file_path, readonly)?;
         let header = unsafe { Self::get_header(&mapping) };
