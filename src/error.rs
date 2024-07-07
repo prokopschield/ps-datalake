@@ -11,6 +11,10 @@ pub enum PsDataLakeError {
     PsHashError(#[from] ps_hash::PsHashError),
     #[error(transparent)]
     PsMmapError(#[from] ps_mmap::PsMmapError),
+    #[error(transparent)]
+    TomlSerError(#[from] toml::ser::Error),
+    #[error(transparent)]
+    TomlDeError(#[from] toml::de::Error),
     #[error("Index out of range")]
     RangeError,
     #[error("DataChunk not found")]

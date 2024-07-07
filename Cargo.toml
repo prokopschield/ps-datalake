@@ -24,3 +24,4 @@ rayon = "1.10.0"
 rkyv = "0.7.44"
 serde = { version = "1.0.196", features = ["serde_derive"] }
 thiserror = "1.0.61"
+toml = "0.8.14"

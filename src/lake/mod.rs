@@ -1,3 +1,4 @@
+pub mod config;
 use crate::store::DataStore;
 
 #[derive(Clone, Default)]
