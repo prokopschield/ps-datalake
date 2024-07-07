@@ -19,6 +19,7 @@ use rayon::iter::ParallelIterator;
 use rayon::slice::ParallelSlice;
 use std::sync::Arc;
 
+pub const MAGIC: [u8; 16] = *b"DataLake\0\0\0\0\0\0\0\0";
 pub const PTR_SIZE: usize = 4;
 pub const CHUNK_SIZE: usize = std::mem::size_of::<DataStorePage>();
 pub const DATA_CHUNK_MIN_SIZE: usize = 75;
@@ -181,7 +182,7 @@ impl<'lt> DataStore<'lt> {
             );
         }
 
-        header.magic = *b"DataLake\0\0\0\0\0\0\0\0";
+        header.magic = MAGIC;
         header.index_modulo = index_modulo;
         header.free_chunk = 0;
         header.index_offset = index_offset as u64;
