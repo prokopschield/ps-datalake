@@ -1,8 +1,6 @@
-pub mod hkey;
 use crate::error::PsDataLakeError;
 use crate::error::Result;
 use crate::helpers::sieve;
-use hkey::Hkey;
 use parking_lot::Mutex;
 use ps_datachunk::aligned::rup;
 use ps_datachunk::BorrowedDataChunk;
@@ -12,6 +10,7 @@ use ps_datachunk::DataChunkTrait;
 use ps_datachunk::MbufDataChunk;
 use ps_datachunk::OwnedDataChunk;
 use ps_hash::Hash;
+use ps_hkey::Hkey;
 use ps_mbuf::Mbuf;
 use ps_mmap::MemoryMapping;
 use ps_mmap::MmapOptions;
@@ -376,7 +375,7 @@ impl<'lt> DataStore<'lt> {
         let encrypted = chunk.encrypt(compressor)?;
 
         if encrypted.data_ref().len() > length {
-            Ok(self.put_opaque_chunk(chunk)?.2.hash().into())
+            Ok(self.put_opaque_chunk(chunk)?.2.hash().to_arc().into())
         } else {
             let chunk = self.put_opaque_chunk(&encrypted.chunk)?.2;
 
@@ -384,7 +383,7 @@ impl<'lt> DataStore<'lt> {
                 Err(PsDataLakeError::StorageFailure)?
             }
 
-            Ok((encrypted.hash().into(), encrypted.key).into())
+            Ok((encrypted.hash().to_arc(), encrypted.key).into())
         }
     }
 

@@ -1,12 +1,12 @@
 pub mod config;
 use crate::error::PsDataLakeError;
 use crate::error::Result;
-use crate::store::hkey::Hkey;
 use crate::store::DataStore;
 use ps_datachunk::Compressor;
 use ps_datachunk::DataChunk;
 use ps_datachunk::MbufDataChunk;
 use ps_datachunk::OwnedDataChunk;
+use ps_hkey::Hkey;
 use rayon::iter::IntoParallelIterator;
 use rayon::iter::ParallelIterator;
 
