@@ -25,6 +25,8 @@ pub enum PsDataLakeError {
     DataStoreNotRw,
     #[error("DataStore is out of space!")]
     DataStoreOutOfSpace,
+    #[error("DataLake is out of available stores!")]
+    DataLakeOutOfStores,
     #[error("Failed to acquire a poisoned mutex")]
     MutexPoisonError,
     #[error("Failed to store data")]

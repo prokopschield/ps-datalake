@@ -2,7 +2,9 @@ pub mod config;
 use crate::error::PsDataLakeError;
 use crate::error::Result;
 use crate::store::DataStore;
+use ps_datachunk::Compressor;
 use ps_datachunk::DataChunk;
+use ps_datachunk::DataChunkTrait;
 use ps_datachunk::MbufDataChunk;
 use ps_hkey::Hkey;
 
@@ -38,5 +40,58 @@ impl<'lt> DataLake<'lt> {
             Ok(chunk) => Ok(chunk.into()),
             Err(err) => Err(err),
         })
+    }
+
+    pub fn put_encrypted_chunk<C: DataChunkTrait>(
+        &'lt self,
+        chunk: &C,
+        compressor: &Compressor,
+    ) -> Result<Hkey> {
+        for store in &self.stores.writable {
+            match store.put_encrypted_chunk(chunk, compressor) {
+                Ok(chunk) => return Ok(chunk),
+                Err(err) => match err {
+                    PsDataLakeError::DataStoreOutOfSpace => (),
+                    PsDataLakeError::DataStoreNotRw => (),
+                    err => Err(err)?,
+                },
+            }
+        }
+
+        Err(PsDataLakeError::DataLakeOutOfStores)
+    }
+
+    pub fn put_chunk<C: DataChunkTrait>(
+        &'lt self,
+        chunk: &C,
+        compressor: &Compressor,
+    ) -> Result<Hkey> {
+        for store in &self.stores.writable {
+            match store.put_chunk(chunk, compressor) {
+                Ok(chunk) => return Ok(chunk),
+                Err(err) => match err {
+                    PsDataLakeError::DataStoreOutOfSpace => (),
+                    PsDataLakeError::DataStoreNotRw => (),
+                    _ => Err(err)?,
+                },
+            }
+        }
+
+        Err(PsDataLakeError::DataLakeOutOfStores)
+    }
+
+    pub fn put_blob(&'lt self, blob: &[u8], compressor: &Compressor) -> Result<Hkey> {
+        for store in &self.stores.writable {
+            match store.put_blob(blob, compressor) {
+                Ok(chunk) => return Ok(chunk),
+                Err(err) => match err {
+                    PsDataLakeError::DataStoreOutOfSpace => (),
+                    PsDataLakeError::DataStoreNotRw => (),
+                    _ => Err(err)?,
+                },
+            }
+        }
+
+        Err(PsDataLakeError::DataLakeOutOfStores)
     }
 }
