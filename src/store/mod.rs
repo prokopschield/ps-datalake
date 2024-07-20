@@ -430,12 +430,9 @@ impl<'lt> DataStore<'lt> {
         let chunks = blob.par_chunks(DATA_CHUNK_MAX_RAW_SIZE);
 
         // store each chunk
-        let chunk_keys: Vec<Result<Hkey>> = chunks
+        let chunks: Result<Vec<Hkey>> = chunks
             .map(|blob| self.put_blob(blob, &Compressor::new()))
             .collect();
-
-        // transform Vec<Result<Hkey>> into Result<Vec<Hkey>>
-        let chunks: Result<Vec<Hkey>> = chunk_keys.into_iter().collect();
 
         // generate [c1,c2,..,cN]
         let list = Hkey::format_list(&chunks?);
