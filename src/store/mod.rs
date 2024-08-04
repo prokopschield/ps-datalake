@@ -296,6 +296,7 @@ impl<'lt> DataStore<'lt> {
 
                 Ok(chunk.into())
             }
+            _ => key.resolve(&|hash| Ok(self.get_chunk_by_hash(hash.as_bytes())?.into())),
         }
     }
 

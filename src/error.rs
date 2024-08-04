@@ -10,6 +10,8 @@ pub enum PsDataLakeError {
     #[error(transparent)]
     PsHashError(#[from] ps_hash::PsHashError),
     #[error(transparent)]
+    PsHkeyError(#[from] ps_hkey::PsHkeyError),
+    #[error(transparent)]
     PsMmapError(#[from] ps_mmap::PsMmapError),
     #[error(transparent)]
     TomlSerError(#[from] Box<toml::ser::Error>),
