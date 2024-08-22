@@ -11,12 +11,12 @@ use ps_datachunk::MbufDataChunk;
 use ps_datachunk::OwnedDataChunk;
 use ps_hash::Hash;
 use ps_hkey::Hkey;
+use ps_hkey::LongHkeyExpanded;
 use ps_mbuf::Mbuf;
 use ps_mmap::MemoryMapping;
 use ps_mmap::MmapOptions;
 use rayon::iter::IntoParallelRefIterator;
 use rayon::iter::ParallelIterator;
-use rayon::slice::ParallelSlice;
 use std::sync::Arc;
 
 pub const MAGIC: [u8; 16] = *b"DataLake\0\0\0\0\0\0\0\0";
@@ -428,27 +428,9 @@ impl<'lt> DataStore<'lt> {
             return self.put_blob(blob, compressor);
         }
 
-        // get parallel iterator
-        let chunks = blob.par_chunks(DATA_CHUNK_MAX_RAW_SIZE);
+        let store = |blob: &[u8]| self.put_blob(blob, &Compressor::new());
 
-        // store each chunk
-        let chunks: Result<Vec<Hkey>> = chunks
-            .map(|blob| self.put_blob(blob, &Compressor::new()))
-            .collect();
-
-        // generate [c1,c2,..,cN]
-        let list = Hkey::format_list(&chunks?);
-
-        // store list
-        let hkey = self.put_blob(list.as_bytes(), compressor)?;
-
-        // transform Hkey::Encrypted into Hkey::ListRef
-        let hkey = match hkey {
-            Hkey::Encrypted(hash, key) => Hkey::ListRef(hash, key),
-            _ => Err(PsDataLakeError::StorageFailure)?, // this should never happen
-        };
-
-        Ok(hkey)
+        LongHkeyExpanded::from_blob::<PsDataLakeError, _, _>(&store, blob)?.shrink(&store)
     }
 
     pub fn put_blob(&'lt self, blob: &[u8], compressor: &Compressor) -> Result<Hkey> {
