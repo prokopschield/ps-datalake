@@ -160,7 +160,8 @@ impl<'lt> DataStore<'lt> {
 
         let total_length = mapping.len();
         let (index_offset, index_length, data_offset) = Self::derive_index_bounds(total_length);
-        let index_modulo = sieve::get_le_prime(index_length as u32);
+        let index_modulo_max = index_length * 99 / 100;
+        let index_modulo = sieve::get_le_prime(index_modulo_max as u32);
 
         let arc = mapping.rw()?;
         let mut map = arc.lock()?;
