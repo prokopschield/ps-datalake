@@ -2,9 +2,8 @@ use crate::error::PsDataLakeError;
 use crate::error::Result;
 use crate::helpers::sieve;
 use parking_lot::Mutex;
-use ps_datachunk::aligned::rup;
+use ps_datachunk::utils::round_up;
 use ps_datachunk::BorrowedDataChunk;
-use ps_datachunk::Compressor;
 use ps_datachunk::DataChunk;
 use ps_datachunk::DataChunkTrait;
 use ps_datachunk::MbufDataChunk;
@@ -144,7 +143,7 @@ impl<'lt> DataStore<'lt> {
         let ihead = std::mem::size_of::<DataStoreIndex>();
         let phead = std::mem::size_of::<DataStorePager>();
         let base_items = 1 + (total_len >> 10);
-        let rup_items = rup(base_items, 10);
+        let rup_items = round_up(base_items, 10);
         let sub_bytes = offset + ihead + phead;
         let sub_items = sub_bytes / std::mem::size_of::<u32>();
         let index_length = rup_items - sub_items;
@@ -258,7 +257,7 @@ impl<'lt> DataStore<'lt> {
         Ok(chunk.ok_or(PsDataLakeError::NotFound)?)
     }
 
-    pub fn get_chunk_by_hkey(&'lt self, key: &Hkey, compressor: &Compressor) -> Result<DataChunk> {
+    pub fn get_chunk_by_hkey(&'lt self, key: &Hkey) -> Result<DataChunk> {
         match key {
             Hkey::Raw(raw) => Ok(OwnedDataChunk::from_data_ref(raw).into()),
             Hkey::Base64(base64) => {
@@ -267,22 +266,22 @@ impl<'lt> DataStore<'lt> {
             Hkey::Direct(hash) => Ok(self.get_chunk_by_hash(hash.as_bytes())?.into()),
             Hkey::Encrypted(hash, key) => {
                 let chunk = self.get_chunk_by_hash(hash.as_bytes())?;
-                let decrypted = chunk.decrypt(key.as_bytes(), compressor)?;
+                let decrypted = chunk.decrypt(key.as_bytes())?;
 
                 Ok(decrypted.into())
             }
             Hkey::ListRef(hash, key) => {
                 let hkey = Hkey::Encrypted(hash.clone(), key.clone());
-                let long = Self::get_chunk_by_hkey(self, &hkey, compressor)?;
+                let long = Self::get_chunk_by_hkey(self, &hkey)?;
                 let hkey = Hkey::parse(long.data_ref());
 
-                self.get_chunk_by_hkey(&hkey, compressor)
+                self.get_chunk_by_hkey(&hkey)
             }
             Hkey::List(list) => {
                 // Parallel fetching of chunks
                 let chunks: Vec<Result<DataChunk>> = list
                     .par_iter()
-                    .map(|hkey| self.get_chunk_by_hkey(hkey, &Compressor::new()))
+                    .map(|hkey| self.get_chunk_by_hkey(hkey))
                     .collect();
 
                 // Collect and concatenate data from chunks
@@ -364,21 +363,17 @@ impl<'lt> DataStore<'lt> {
         ))
     }
 
-    pub fn put_encrypted_chunk<C: DataChunkTrait>(
-        &'lt self,
-        chunk: &C,
-        compressor: &Compressor,
-    ) -> Result<Hkey> {
+    pub fn put_encrypted_chunk<C: DataChunkTrait>(&'lt self, chunk: &C) -> Result<Hkey> {
         let length = chunk.data_ref().len();
 
         if length < DATA_CHUNK_MIN_SIZE || length > DATA_CHUNK_MAX_ENCRYPTED_SIZE {
-            return self.put_chunk(chunk, compressor);
+            return self.put_chunk(chunk);
         }
 
-        let encrypted = chunk.encrypt(compressor)?;
+        let encrypted = chunk.encrypt()?;
 
         if encrypted.data_ref().len() > length {
-            Ok(self.put_opaque_chunk(chunk)?.2.hash().to_arc().into())
+            Ok(self.put_opaque_chunk(chunk)?.2.hash().into())
         } else {
             let chunk = self.put_opaque_chunk(&encrypted.chunk)?.2;
 
@@ -386,32 +381,24 @@ impl<'lt> DataStore<'lt> {
                 Err(PsDataLakeError::StorageFailure)?
             }
 
-            Ok((encrypted.hash().to_arc(), encrypted.key).into())
+            Ok((encrypted.hash(), encrypted.key).into())
         }
     }
 
-    pub fn put_large_chunk<C: DataChunkTrait>(
-        &'lt self,
-        chunk: &C,
-        compressor: &Compressor,
-    ) -> Result<Hkey> {
-        self.put_large_blob(chunk.data_ref(), compressor)
+    pub fn put_large_chunk<C: DataChunkTrait>(&'lt self, chunk: &C) -> Result<Hkey> {
+        self.put_large_blob(chunk.data_ref())
     }
 
-    pub fn put_chunk<C: DataChunkTrait>(
-        &'lt self,
-        chunk: &C,
-        compressor: &Compressor,
-    ) -> Result<Hkey> {
+    pub fn put_chunk<C: DataChunkTrait>(&'lt self, chunk: &C) -> Result<Hkey> {
         if chunk.data_ref().len() < DATA_CHUNK_MIN_SIZE {
             return Ok(Hkey::from_raw(chunk.data_ref()));
         }
 
         if chunk.data_ref().len() > DATA_CHUNK_MAX_RAW_SIZE {
-            return self.put_large_chunk(chunk, compressor);
+            return self.put_large_chunk(chunk);
         }
 
-        let encrypted = chunk.encrypt(compressor)?;
+        let encrypted = chunk.encrypt()?;
 
         let stored_chunk = self.put_opaque_chunk(&encrypted.chunk)?.2;
 
@@ -422,24 +409,24 @@ impl<'lt> DataStore<'lt> {
         Ok(Hkey::Encrypted(encrypted.chunk.hash(), encrypted.key))
     }
 
-    pub fn put_large_blob(&'lt self, blob: &[u8], compressor: &Compressor) -> Result<Hkey> {
+    pub fn put_large_blob(&'lt self, blob: &[u8]) -> Result<Hkey> {
         // sanity check
         if blob.len() < DATA_CHUNK_MAX_RAW_SIZE {
-            return self.put_blob(blob, compressor);
+            return self.put_blob(blob);
         }
 
-        let store = |blob: &[u8]| self.put_blob(blob, &Compressor::new());
+        let store = |blob: &[u8]| self.put_blob(blob);
 
         LongHkeyExpanded::from_blob::<PsDataLakeError, _, _>(&store, blob)?.shrink(&store)
     }
 
-    pub fn put_blob(&'lt self, blob: &[u8], compressor: &Compressor) -> Result<Hkey> {
+    pub fn put_blob(&'lt self, blob: &[u8]) -> Result<Hkey> {
         if blob.len() < DATA_CHUNK_MIN_SIZE {
             Ok(Hkey::from_raw(blob))
         } else if blob.len() > DATA_CHUNK_MAX_RAW_SIZE {
-            self.put_large_blob(blob, compressor)
+            self.put_large_blob(blob)
         } else {
-            self.put_chunk(&BorrowedDataChunk::from_data(blob), compressor)
+            self.put_chunk(&BorrowedDataChunk::from_data(blob))
         }
     }
 }
