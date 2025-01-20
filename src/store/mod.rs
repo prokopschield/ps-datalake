@@ -12,8 +12,7 @@ use ps_hash::Hash;
 use ps_hkey::Hkey;
 use ps_hkey::LongHkeyExpanded;
 use ps_mbuf::Mbuf;
-use ps_mmap::MemoryMapping;
-use ps_mmap::MmapOptions;
+use ps_mmap::MemoryMap;
 use rayon::iter::IntoParallelRefIterator;
 use rayon::iter::ParallelIterator;
 use std::sync::Arc;
@@ -73,7 +72,7 @@ pub struct DataStoreAtomic<'lt> {
     pub header: &'lt mut DataStoreHeader,
     pub index: &'lt mut DataStoreIndex<'lt>,
     pub pager: &'lt mut DataStorePager<'lt>,
-    pub mapping: MemoryMapping<'lt>,
+    pub mapping: MemoryMap,
 }
 
 #[derive(Clone)]
@@ -84,24 +83,22 @@ pub struct DataStore<'lt> {
 }
 
 impl<'lt> DataStore<'lt> {
-    pub fn load_mapping(file_path: &str, readonly: bool) -> Result<MemoryMapping<'lt>> {
-        let mapping = MemoryMapping::new_backed(&MmapOptions::new(), file_path, readonly)?;
-
-        Ok(mapping)
+    pub fn load_mapping(file_path: &str, readonly: bool) -> Result<MemoryMap> {
+        Ok(MemoryMap::map(file_path, readonly)?)
     }
 
-    pub unsafe fn get_header(mapping: &MemoryMapping<'lt>) -> &'lt mut DataStoreHeader {
+    pub unsafe fn get_header(mapping: &MemoryMap) -> &'lt mut DataStoreHeader {
         &mut *(mapping.as_ptr() as *mut DataStoreHeader)
     }
 
-    pub unsafe fn get_index(mapping: &MemoryMapping<'lt>) -> &'lt mut DataStoreIndex<'lt> {
+    pub unsafe fn get_index(mapping: &MemoryMap) -> &'lt mut DataStoreIndex<'lt> {
         DataStoreIndex::at_offset_mut(
             mapping.as_ptr() as *mut u8,
             Self::get_header(mapping).index_offset as usize,
         )
     }
 
-    pub unsafe fn get_pager(mapping: &MemoryMapping<'lt>) -> &'lt mut DataStorePager<'lt> {
+    pub unsafe fn get_pager(mapping: &MemoryMap) -> &'lt mut DataStorePager<'lt> {
         DataStorePager::at_offset_mut(
             mapping.as_ptr() as *mut u8,
             Self::get_header(mapping).data_offset as usize,
@@ -162,8 +159,7 @@ impl<'lt> DataStore<'lt> {
         let index_modulo_max = index_length * 99 / 100;
         let index_modulo = sieve::get_le_prime(index_modulo_max as u32);
 
-        let arc = mapping.rw()?;
-        let mut map = arc.lock()?;
+        let mut map = mapping.try_write()?;
 
         unsafe {
             DataStoreIndex::init_at_ptr(
