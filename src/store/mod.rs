@@ -1,4 +1,7 @@
 mod atomic;
+mod shared;
+
+use std::marker::PhantomData;
 
 use crate::error::PsDataLakeError;
 use crate::error::Result;
@@ -17,6 +20,7 @@ use ps_mbuf::Mbuf;
 use ps_mmap::MemoryMap;
 use rayon::iter::IntoParallelRefIterator;
 use rayon::iter::ParallelIterator;
+use shared::DataStoreReadGuard;
 
 pub const MAGIC: [u8; 16] = *b"DataLake\0\0\0\0\0\0\0\0";
 pub const PTR_SIZE: usize = 4;
@@ -63,22 +67,19 @@ pub type DataStoreIndex<'lt> = Mbuf<'lt, (), u32>;
 pub type DataStorePager<'lt> = Mbuf<'lt, (), DataStorePage<'lt>>;
 
 #[derive(Clone)]
-pub struct DataStoreShared<'lt> {
-    pub header: &'lt DataStoreHeader,
-    pub index: &'lt DataStoreIndex<'lt>,
-    pub pager: &'lt DataStorePager<'lt>,
-}
-
-#[derive(Clone)]
 pub struct DataStore<'lt> {
     mmap: MemoryMap,
-    shared: DataStoreShared<'lt>,
     readonly: bool,
+    _data: PhantomData<&'lt [u8]>,
 }
 
 impl<'lt> DataStore<'lt> {
     pub fn load_mapping(file_path: &str, readonly: bool) -> Result<MemoryMap> {
         Ok(MemoryMap::map(file_path, readonly)?)
+    }
+
+    fn shared(&self) -> DataStoreReadGuard<'lt> {
+        self.into()
     }
 
     fn atomic(&self) -> Result<DataStoreWriteGuard> {
@@ -104,18 +105,12 @@ impl<'lt> DataStore<'lt> {
     }
 
     pub fn load(file_path: &str, readonly: bool) -> Result<Self> {
-        let mapping = Self::load_mapping(file_path, readonly)?;
-
-        let shared = DataStoreShared {
-            header: unsafe { Self::get_header(&mapping) },
-            index: unsafe { Self::get_index(&mapping) },
-            pager: unsafe { Self::get_pager(&mapping) },
-        };
+        let mmap = Self::load_mapping(file_path, readonly)?;
 
         let store = DataStore {
-            mmap: mapping,
-            shared,
+            mmap,
             readonly,
+            _data: PhantomData,
         };
 
         Ok(store)
@@ -184,7 +179,7 @@ impl<'lt> DataStore<'lt> {
     }
 
     pub fn get_chunk_by_index(&self, index: usize) -> Result<MbufDataChunk> {
-        match self.shared.pager.get(index) {
+        match self.shared().get_pager().get(index) {
             Some(page) => Ok(page.mbuf().into()),
             None => Err(PsDataLakeError::RangeError),
         }
@@ -198,12 +193,13 @@ impl<'lt> DataStore<'lt> {
         &self,
         hash: &[u8],
     ) -> Result<(u32, u32, Option<MbufDataChunk>)> {
-        let bucket = Self::calculate_index_bucket(hash, self.shared.header.index_modulo);
+        let shared = self.shared();
+        let header = shared.get_header();
+        let index = shared.get_index();
+        let bucket = Self::calculate_index_bucket(hash, header.index_modulo);
 
-        for bucket in bucket..self.shared.index.len() as u32 {
-            let index = self
-                .shared
-                .index
+        for bucket in bucket..index.len() as u32 {
+            let index = index
                 .get(bucket as usize)
                 .ok_or(PsDataLakeError::IndexBucketOverflow)?;
 
