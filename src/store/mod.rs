@@ -1,7 +1,9 @@
+mod atomic;
+
 use crate::error::PsDataLakeError;
 use crate::error::Result;
 use crate::helpers::sieve;
-use parking_lot::Mutex;
+use atomic::DataStoreWriteGuard;
 use ps_datachunk::utils::round_up;
 use ps_datachunk::BorrowedDataChunk;
 use ps_datachunk::DataChunk;
@@ -15,7 +17,6 @@ use ps_mbuf::Mbuf;
 use ps_mmap::MemoryMap;
 use rayon::iter::IntoParallelRefIterator;
 use rayon::iter::ParallelIterator;
-use std::sync::Arc;
 
 pub const MAGIC: [u8; 16] = *b"DataLake\0\0\0\0\0\0\0\0";
 pub const PTR_SIZE: usize = 4;
@@ -68,23 +69,20 @@ pub struct DataStoreShared<'lt> {
     pub pager: &'lt DataStorePager<'lt>,
 }
 
-pub struct DataStoreAtomic<'lt> {
-    pub header: &'lt mut DataStoreHeader,
-    pub index: &'lt mut DataStoreIndex<'lt>,
-    pub pager: &'lt mut DataStorePager<'lt>,
-    pub mapping: MemoryMap,
-}
-
 #[derive(Clone)]
 pub struct DataStore<'lt> {
+    mmap: MemoryMap,
     shared: DataStoreShared<'lt>,
-    atomic: Arc<Mutex<DataStoreAtomic<'lt>>>,
     readonly: bool,
 }
 
 impl<'lt> DataStore<'lt> {
     pub fn load_mapping(file_path: &str, readonly: bool) -> Result<MemoryMap> {
         Ok(MemoryMap::map(file_path, readonly)?)
+    }
+
+    fn atomic(&self) -> Result<DataStoreWriteGuard> {
+        Ok(self.try_into()?)
     }
 
     pub unsafe fn get_header(mapping: &MemoryMap) -> &'lt mut DataStoreHeader {
@@ -114,19 +112,9 @@ impl<'lt> DataStore<'lt> {
             pager: unsafe { Self::get_pager(&mapping) },
         };
 
-        let atomic = DataStoreAtomic {
-            header: unsafe { Self::get_header(&mapping) },
-            index: unsafe { Self::get_index(&mapping) },
-            pager: unsafe { Self::get_pager(&mapping) },
-            mapping,
-        };
-
-        let atomic = Mutex::from(atomic);
-        let atomic = Arc::from(atomic);
-
         let store = DataStore {
+            mmap: mapping,
             shared,
-            atomic,
             readonly,
         };
 
@@ -326,18 +314,18 @@ impl<'lt> DataStore<'lt> {
             Err(PsDataLakeError::DataStoreNotRw)?
         }
 
-        let mut atomic = self.atomic.lock();
+        let mut atomic = self.atomic()?;
 
-        let next_free_chunk = atomic.header.free_chunk as usize;
+        let next_free_chunk = atomic.get_header().free_chunk as usize;
 
         let required_chunks = DataStorePage::bytes_to_pages(opaque_chunk.data_ref().len());
 
-        if (atomic.pager.len() - next_free_chunk) < required_chunks {
+        if (atomic.get_pager().len() - next_free_chunk) < required_chunks {
             Err(PsDataLakeError::DataStoreOutOfSpace)?
         }
 
         let pointer = atomic
-            .pager
+            .get_pager()
             .get(next_free_chunk)
             .ok_or(PsDataLakeError::RangeError)?
             .mbuf() as *const _ as *mut u8;
@@ -346,9 +334,9 @@ impl<'lt> DataStore<'lt> {
             DataStorePageMbuf::write_to_ptr(pointer, *opaque_chunk.hash(), opaque_chunk.data_ref())
         };
 
-        atomic.header.free_chunk += required_chunks as u32;
+        atomic.get_header().free_chunk += required_chunks as u32;
 
-        atomic.index[bucket as usize] = next_free_chunk as u32;
+        atomic.get_index()[bucket as usize] = next_free_chunk as u32;
 
         drop(atomic);
 
