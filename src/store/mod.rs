@@ -135,7 +135,6 @@ impl<'lt> DataStore<'lt> {
     pub fn init(file_path: &str) -> Result<Self> {
         let readonly = false;
         let mapping = Self::load_mapping(file_path, readonly)?;
-        let header = unsafe { Self::get_header(&mapping) };
 
         let total_length = mapping.len();
         let (index_offset, index_length, data_offset) = Self::derive_index_bounds(total_length);
@@ -160,6 +159,9 @@ impl<'lt> DataStore<'lt> {
                 (total_length - data_offset) / CHUNK_SIZE,
             );
         }
+
+        let mut guard = DataStoreWriteGuard::from(map);
+        let header = guard.get_header();
 
         header.magic = MAGIC;
         header.index_modulo = index_modulo;
