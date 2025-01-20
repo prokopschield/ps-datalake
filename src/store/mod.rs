@@ -163,7 +163,7 @@ impl<'lt> DataStore<'lt> {
 
         unsafe {
             DataStoreIndex::init_at_ptr(
-                (&mut map[index_offset..index_offset]).as_mut_ptr(),
+                map[index_offset..index_offset].as_mut_ptr(),
                 (),
                 index_length,
             )
@@ -172,7 +172,7 @@ impl<'lt> DataStore<'lt> {
 
         unsafe {
             DataStorePager::init_at_ptr(
-                (&mut map[data_offset..data_offset]).as_mut_ptr(),
+                map[data_offset..data_offset].as_mut_ptr(),
                 (),
                 (total_length - data_offset) / CHUNK_SIZE,
             );
@@ -250,7 +250,7 @@ impl<'lt> DataStore<'lt> {
     pub fn get_chunk_by_hash(&'lt self, hash: &[u8]) -> Result<MbufDataChunk<'lt>> {
         let (_, _, chunk) = self.get_bucket_index_chunk_by_hash(hash)?;
 
-        Ok(chunk.ok_or(PsDataLakeError::NotFound)?)
+        chunk.ok_or(PsDataLakeError::NotFound)
     }
 
     pub fn get_chunk_by_hkey(&'lt self, key: &Hkey) -> Result<DataChunk> {
@@ -355,14 +355,14 @@ impl<'lt> DataStore<'lt> {
         Ok((
             bucket,
             next_free_chunk as u32,
-            self.get_chunk_by_index(next_free_chunk)?.into(),
+            self.get_chunk_by_index(next_free_chunk)?,
         ))
     }
 
     pub fn put_encrypted_chunk<C: DataChunkTrait>(&'lt self, chunk: &C) -> Result<Hkey> {
         let length = chunk.data_ref().len();
 
-        if length < DATA_CHUNK_MIN_SIZE || length > DATA_CHUNK_MAX_ENCRYPTED_SIZE {
+        if !(DATA_CHUNK_MIN_SIZE..=DATA_CHUNK_MAX_ENCRYPTED_SIZE).contains(&length) {
             return self.put_chunk(chunk);
         }
 
