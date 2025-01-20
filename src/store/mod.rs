@@ -169,6 +169,8 @@ impl<'lt> DataStore<'lt> {
         header.index_offset = index_offset as u64;
         header.data_offset = data_offset as u64;
 
+        drop(guard);
+
         let store = Self::load(file_path, false)?;
 
         store.put_opaque_chunk(&OwnedDataChunk::from_data_ref(
