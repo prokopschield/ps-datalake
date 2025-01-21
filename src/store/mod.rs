@@ -372,8 +372,13 @@ impl<'lt> DataStore<'lt> {
         let next_free_chunk = atomic.get_header().free_chunk as usize;
 
         let required_chunks = DataStorePage::bytes_to_pages(opaque_chunk.data_ref().len());
+        let available_chunks = atomic
+            .get_pager()
+            .len()
+            .checked_sub(next_free_chunk)
+            .ok_or(PsDataLakeError::DataStoreOutOfSpace)?;
 
-        if (atomic.get_pager().len() - next_free_chunk) < required_chunks {
+        if available_chunks < required_chunks {
             Err(PsDataLakeError::DataStoreOutOfSpace)?
         }
 
