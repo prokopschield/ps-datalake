@@ -37,6 +37,8 @@ pub enum PsDataLakeError {
     StorageFailure,
     #[error("Invalid input format")]
     FormatError,
+    #[error("To initialize a DataStore, please provision at least 64 kB of space.")]
+    InitFailedNotEnoughSpace(usize),
 }
 
 pub type Result<T> = std::result::Result<T, PsDataLakeError>;

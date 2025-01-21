@@ -190,6 +190,10 @@ impl<'lt> DataStore<'lt> {
         let index_modulo_max = index_length * 99 / 100;
         let index_modulo = sieve::get_le_prime(index_modulo_max as u32);
 
+        if (data_offset + std::mem::size_of::<DataStorePager>()) > mapping.len() {
+            Err(PsDataLakeError::InitFailedNotEnoughSpace(mapping.len()))?
+        }
+
         let mut map = mapping.try_write()?;
 
         unsafe {
