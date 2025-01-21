@@ -3,6 +3,7 @@ mod shared;
 
 use std::marker::PhantomData;
 
+use crate::error::DataStoreCorrupted;
 use crate::error::PsDataLakeError;
 use crate::error::Result;
 use crate::helpers::sieve;
@@ -18,6 +19,7 @@ use ps_hkey::Hkey;
 use ps_hkey::LongHkeyExpanded;
 use ps_mbuf::Mbuf;
 use ps_mmap::MemoryMap;
+use ps_str::Utf8Encoder;
 use rayon::iter::IntoParallelRefIterator;
 use rayon::iter::ParallelIterator;
 use shared::DataStoreReadGuard;
@@ -105,13 +107,60 @@ impl<'lt> DataStore<'lt> {
     }
 
     pub fn load(file_path: &str, readonly: bool) -> Result<Self> {
+        use DataStoreCorrupted::*;
+
         let mmap = Self::load_mapping(file_path, readonly)?;
+        let size = mmap.len();
+
+        if size < std::mem::size_of::<DataStoreHeader>() {
+            Err(InvalidDataStoreSize(size))?
+        }
 
         let store = DataStore {
             mmap,
             readonly,
             _data: PhantomData,
         };
+
+        let shared = store.shared();
+        let header = shared.get_header();
+
+        if header.magic != MAGIC {
+            Err(InvalidMagic(header.magic.to_utf8_string()))?
+        }
+
+        if header.index_offset > size as u64 {
+            Err(IndexOffsetOutOfBounds(header.index_offset, size))?
+        }
+
+        if header.data_offset > size as u64 {
+            Err(DataOffsetOutOfBounds(header.data_offset, size))?
+        }
+
+        let index = shared.get_index();
+        let pager = shared.get_pager();
+
+        let base_ptr = store.mmap.as_ptr();
+
+        let index_end_offset = index.as_ptr_range().end as usize - base_ptr as usize;
+        if index_end_offset > size {
+            Err(IndexEndsOutOfBounds(index_end_offset, size))?
+        }
+
+        let data_end_offset = pager.as_ptr_range().end as usize - base_ptr as usize;
+        if data_end_offset > size {
+            Err(DataEndsOutOfBounds(data_end_offset, size))?
+        }
+
+        let data_ptr = std::ptr::addr_of!(*pager.get_metadata());
+        let data_start_offset = data_ptr as usize;
+        if index_end_offset > data_start_offset {
+            Err(IndexDataOverlap(index_end_offset, data_start_offset))?
+        }
+
+        if header.index_modulo > (index.len() as u32) {
+            Err(IndexModuloTooSmall(header.index_modulo, index.len() as u32))?
+        }
 
         Ok(store)
     }

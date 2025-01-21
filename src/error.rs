@@ -4,6 +4,8 @@ use thiserror::Error;
 #[derive(Error, Debug)]
 pub enum PsDataLakeError {
     #[error(transparent)]
+    DataStoreCorrupted(#[from] DataStoreCorrupted),
+    #[error(transparent)]
     IoError(#[from] std::io::Error),
     #[error(transparent)]
     PsDataChunkError(#[from] ps_datachunk::PsDataChunkError),
@@ -55,4 +57,24 @@ impl From<toml::de::Error> for PsDataLakeError {
     fn from(value: toml::de::Error) -> Self {
         Self::TomlDeError(Box::from(value))
     }
+}
+
+#[derive(Clone, Debug, Error, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub enum DataStoreCorrupted {
+    #[error("DataStore has a size of {0} bytes")]
+    InvalidDataStoreSize(usize),
+    #[error("DataStore has an invalid file signature: {0}")]
+    InvalidMagic(String),
+    #[error("Index offset out of bounds: {0} > {1}")]
+    IndexOffsetOutOfBounds(u64, usize),
+    #[error("Data offset out of bounds: {0} > {1}")]
+    DataOffsetOutOfBounds(u64, usize),
+    #[error("Index ends out of bounds: {0} > {1}")]
+    IndexEndsOutOfBounds(usize, usize),
+    #[error("Data ends out of bounds: {0} > {1}")]
+    DataEndsOutOfBounds(usize, usize),
+    #[error("Index overlaps with data: {0} > {1}")]
+    IndexDataOverlap(usize, usize),
+    #[error("Index modulo {0} > index length {1}")]
+    IndexModuloTooSmall(u32, u32),
 }
