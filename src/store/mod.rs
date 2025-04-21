@@ -8,15 +8,16 @@ use crate::error::PsDataLakeError;
 use crate::error::Result;
 use crate::helpers::sieve;
 use atomic::DataStoreWriteGuard;
+use ps_base64::base64;
 use ps_datachunk::utils::round_up;
 use ps_datachunk::BorrowedDataChunk;
 use ps_datachunk::DataChunk;
-use ps_datachunk::DataChunkTrait;
 use ps_datachunk::MbufDataChunk;
 use ps_datachunk::OwnedDataChunk;
 use ps_hash::Hash;
 use ps_hkey::Hkey;
 use ps_hkey::LongHkeyExpanded;
+use ps_hkey::Resolved;
 use ps_mbuf::Mbuf;
 use ps_mmap::MemoryMap;
 use ps_str::Utf8Encoder;
@@ -226,11 +227,11 @@ impl<'lt> DataStore<'lt> {
 
         let store = Self::load(file_path, false)?;
 
-        store.put_opaque_chunk(&OwnedDataChunk::from_data_ref(
+        store.put_opaque_chunk(&BorrowedDataChunk::from_data(
             b"<< DATA SEGMENT BEGINS HERE >>",
             // Chunk #0 cannot be accessed and is therefore reserved for metadata
             // about this DataStore, the size of which shall not exceed 192 bytes
-        ))?;
+        )?)?;
 
         Ok(store)
     }
@@ -242,13 +243,13 @@ impl<'lt> DataStore<'lt> {
         }
     }
 
-    pub fn calculate_index_bucket(hash: &[u8], index_modulo: u32) -> u32 {
-        ps_hash::checksum_u32(hash, hash.len() as u32) % index_modulo
+    pub fn calculate_index_bucket(hash: &Hash, index_modulo: u32) -> u32 {
+        (u32::from_be_bytes(base64::sized_decode::<4>(&hash.as_bytes()[..6]))) % index_modulo
     }
 
     pub fn get_bucket_index_chunk_by_hash(
         &self,
-        hash: &[u8],
+        hash: &Hash,
     ) -> Result<(u32, u32, Option<MbufDataChunk>)> {
         let shared = self.shared();
         let header = shared.get_header();
@@ -274,13 +275,13 @@ impl<'lt> DataStore<'lt> {
         Err(PsDataLakeError::IndexBucketOverflow)
     }
 
-    pub fn get_bucket_by_hash(&'lt self, hash: &[u8]) -> Result<u32> {
+    pub fn get_bucket_by_hash(&'lt self, hash: &Hash) -> Result<u32> {
         let (bucket, _, _) = self.get_bucket_index_chunk_by_hash(hash)?;
 
         Ok(bucket)
     }
 
-    pub fn get_index_by_hash(&'lt self, hash: &[u8]) -> Result<u32> {
+    pub fn get_index_by_hash(&'lt self, hash: &Hash) -> Result<u32> {
         let (_, index, chunk) = self.get_bucket_index_chunk_by_hash(hash)?;
 
         chunk.ok_or(PsDataLakeError::NotFound)?;
@@ -288,21 +289,21 @@ impl<'lt> DataStore<'lt> {
         Ok(index)
     }
 
-    pub fn get_chunk_by_hash(&'lt self, hash: &[u8]) -> Result<MbufDataChunk<'lt>> {
+    pub fn get_chunk_by_hash(&'lt self, hash: &Hash) -> Result<MbufDataChunk<'lt>> {
         let (_, _, chunk) = self.get_bucket_index_chunk_by_hash(hash)?;
 
         chunk.ok_or(PsDataLakeError::NotFound)
     }
 
-    pub fn get_chunk_by_hkey(&'lt self, key: &Hkey) -> Result<DataChunk> {
+    pub fn get_chunk_by_hkey(&'lt self, key: &Hkey) -> Result<Resolved<MbufDataChunk>> {
         match key {
-            Hkey::Raw(raw) => Ok(OwnedDataChunk::from_data_ref(raw).into()),
+            Hkey::Raw(raw) => Ok(Resolved::Data(raw.clone())),
             Hkey::Base64(base64) => {
-                Ok(OwnedDataChunk::from_data(ps_base64::decode(base64.as_bytes())).into())
+                Ok(OwnedDataChunk::from_data(ps_base64::decode(base64.as_bytes()))?.into())
             }
-            Hkey::Direct(hash) => Ok(self.get_chunk_by_hash(hash.as_bytes())?.into()),
+            Hkey::Direct(hash) => Ok(Resolved::Custom(self.get_chunk_by_hash(hash)?)),
             Hkey::Encrypted(hash, key) => {
-                let chunk = self.get_chunk_by_hash(hash.as_bytes())?;
+                let chunk = self.get_chunk_by_hash(hash)?;
                 let decrypted = chunk.decrypt(key.as_bytes())?;
 
                 Ok(decrypted.into())
@@ -316,7 +317,7 @@ impl<'lt> DataStore<'lt> {
             }
             Hkey::List(list) => {
                 // Parallel fetching of chunks
-                let chunks: Vec<Result<DataChunk>> = list
+                let chunks: Vec<Result<Resolved<MbufDataChunk>>> = list
                     .par_iter()
                     .map(|hkey| self.get_chunk_by_hkey(hkey))
                     .collect();
@@ -329,11 +330,11 @@ impl<'lt> DataStore<'lt> {
                     });
 
                 // Convert the concatenated data into an OwnedDataChunk
-                let chunk = OwnedDataChunk::from_data(buffer?);
+                let chunk = OwnedDataChunk::from_data(buffer?)?;
 
                 Ok(chunk.into())
             }
-            _ => key.resolve(&|hash| Ok(self.get_chunk_by_hash(hash.as_bytes())?.into())),
+            _ => key.resolve(&|hash| Ok(self.get_chunk_by_hash(hash)?.into())),
         }
     }
 
@@ -352,7 +353,7 @@ impl<'lt> DataStore<'lt> {
     ///   - `datachunk` (MbufDataChunk): The chunk of data that was stored.
     /// - `Err(PsDataLakeError)` on failure:
     ///   - An error of type `PsDataLakeError` indicating the reason for failure.
-    pub fn put_opaque_chunk<C: DataChunkTrait>(
+    pub fn put_opaque_chunk<C: DataChunk>(
         &self,
         opaque_chunk: &C,
     ) -> Result<(u32, u32, MbufDataChunk)> {
@@ -405,7 +406,7 @@ impl<'lt> DataStore<'lt> {
         ))
     }
 
-    pub fn put_encrypted_chunk<C: DataChunkTrait>(&'lt self, chunk: &C) -> Result<Hkey> {
+    pub fn put_encrypted_chunk<C: DataChunk>(&'lt self, chunk: &C) -> Result<Hkey> {
         let length = chunk.data_ref().len();
 
         if !(DATA_CHUNK_MIN_SIZE..=DATA_CHUNK_MAX_ENCRYPTED_SIZE).contains(&length) {
@@ -417,21 +418,21 @@ impl<'lt> DataStore<'lt> {
         if encrypted.data_ref().len() > length {
             Ok(self.put_opaque_chunk(chunk)?.2.hash().into())
         } else {
-            let chunk = self.put_opaque_chunk(&encrypted.chunk)?.2;
+            let chunk = self.put_opaque_chunk(&encrypted)?.2;
 
-            if chunk.hash_ref() != encrypted.chunk.hash_ref() {
+            if chunk.hash_ref() != encrypted.hash_ref() {
                 Err(PsDataLakeError::StorageFailure)?
             }
 
-            Ok((encrypted.hash(), encrypted.key).into())
+            Ok((encrypted.hash(), encrypted.key()).into())
         }
     }
 
-    pub fn put_large_chunk<C: DataChunkTrait>(&'lt self, chunk: &C) -> Result<Hkey> {
+    pub fn put_large_chunk<C: DataChunk>(&'lt self, chunk: &C) -> Result<Hkey> {
         self.put_large_blob(chunk.data_ref())
     }
 
-    pub fn put_chunk<C: DataChunkTrait>(&'lt self, chunk: &C) -> Result<Hkey> {
+    pub fn put_chunk<C: DataChunk>(&'lt self, chunk: &C) -> Result<Hkey> {
         if chunk.data_ref().len() < DATA_CHUNK_MIN_SIZE {
             return Ok(Hkey::from_raw(chunk.data_ref()));
         }
@@ -442,13 +443,13 @@ impl<'lt> DataStore<'lt> {
 
         let encrypted = chunk.encrypt()?;
 
-        let stored_chunk = self.put_opaque_chunk(&encrypted.chunk)?.2;
+        let stored_chunk = self.put_opaque_chunk(&encrypted)?.2;
 
         if stored_chunk.hash_ref() != encrypted.hash_ref() {
             Err(PsDataLakeError::StorageFailure)?
         }
 
-        Ok(Hkey::Encrypted(encrypted.chunk.hash(), encrypted.key))
+        Ok(Hkey::Encrypted(encrypted.hash(), encrypted.key()))
     }
 
     pub fn put_large_blob(&'lt self, blob: &[u8]) -> Result<Hkey> {
@@ -468,7 +469,7 @@ impl<'lt> DataStore<'lt> {
         } else if blob.len() > DATA_CHUNK_MAX_RAW_SIZE {
             self.put_large_blob(blob)
         } else {
-            self.put_chunk(&BorrowedDataChunk::from_data(blob))
+            self.put_chunk(&BorrowedDataChunk::from_data(blob)?)
         }
     }
 }

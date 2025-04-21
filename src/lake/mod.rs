@@ -5,9 +5,10 @@ use crate::error::Result;
 use crate::store::DataStore;
 use config::DataLakeConfig;
 use ps_datachunk::DataChunk;
-use ps_datachunk::DataChunkTrait;
 use ps_datachunk::MbufDataChunk;
+use ps_hash::Hash;
 use ps_hkey::Hkey;
+use ps_hkey::Resolved;
 use util::verify_magic;
 
 #[derive(Clone, Default)]
@@ -49,7 +50,7 @@ impl<'lt> DataLake<'lt> {
         Ok(lake)
     }
 
-    pub fn get_encrypted_chunk(&'lt self, hash: &[u8]) -> Result<MbufDataChunk> {
+    pub fn get_encrypted_chunk(&'lt self, hash: &Hash) -> Result<MbufDataChunk> {
         let mut error = PsDataLakeError::NotFound;
 
         for store in &self.stores.readable {
@@ -65,14 +66,14 @@ impl<'lt> DataLake<'lt> {
         Err(error)
     }
 
-    pub fn get_chunk_by_hkey(&'lt self, hkey: &Hkey) -> Result<DataChunk> {
-        hkey.resolve(&|hash| match self.get_encrypted_chunk(hash.as_bytes()) {
-            Ok(chunk) => Ok(chunk.into()),
+    pub fn get_chunk_by_hkey(&'lt self, hkey: &Hkey) -> Result<Resolved<MbufDataChunk>> {
+        hkey.resolve(&|hash| match self.get_encrypted_chunk(hash) {
+            Ok(chunk) => Ok(chunk),
             Err(err) => Err(err),
         })
     }
 
-    pub fn put_encrypted_chunk<C: DataChunkTrait>(&'lt self, chunk: &C) -> Result<Hkey> {
+    pub fn put_encrypted_chunk<C: DataChunk>(&'lt self, chunk: &C) -> Result<Hkey> {
         for store in &self.stores.writable {
             match store.put_encrypted_chunk(chunk) {
                 Ok(chunk) => return Ok(chunk),
@@ -87,7 +88,7 @@ impl<'lt> DataLake<'lt> {
         Err(PsDataLakeError::DataLakeOutOfStores)
     }
 
-    pub fn put_chunk<C: DataChunkTrait>(&'lt self, chunk: &C) -> Result<Hkey> {
+    pub fn put_chunk<C: DataChunk>(&'lt self, chunk: &C) -> Result<Hkey> {
         for store in &self.stores.writable {
             match store.put_chunk(chunk) {
                 Ok(chunk) => return Ok(chunk),
