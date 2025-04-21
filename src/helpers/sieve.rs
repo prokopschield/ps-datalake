@@ -1,5 +1,6 @@
 // this prime sieve was adapted from https://github.com/PlummersSoftwareLLC/Primes/blob/drag-race/PrimeRust/solution_2/src/prime_object.rs
 
+#[must_use]
 pub fn get_le_prime(limit: u32) -> u32 {
     let q = (limit as f32).sqrt() as u32;
     let mut factor = 3;
@@ -30,7 +31,7 @@ pub fn get_le_prime(limit: u32) -> u32 {
     let mut r = limit as usize;
 
     if r % 2 == 0 {
-        r -= 1
+        r -= 1;
     }
 
     while r > 2 {

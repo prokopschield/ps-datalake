@@ -5,7 +5,7 @@ use ps_mmap::ReadGuard;
 use super::{DataStore, DataStoreHeader, DataStoreIndex, DataStorePager};
 
 #[derive(Debug)]
-pub(crate) struct DataStoreReadGuard<'lt> {
+pub struct DataStoreReadGuard<'lt> {
     inner: ReadGuard,
     _data: PhantomData<&'lt [u8]>,
 }
@@ -13,7 +13,7 @@ pub(crate) struct DataStoreReadGuard<'lt> {
 impl<'lt> DataStoreReadGuard<'lt> {
     #[inline]
     pub fn get_header(&self) -> &'lt DataStoreHeader {
-        unsafe { &*(self.inner.as_ptr() as *const DataStoreHeader) }
+        unsafe { &*self.inner.as_ptr().cast::<DataStoreHeader>() }
     }
 
     #[inline]

@@ -3,14 +3,14 @@ use ps_mmap::{PsMmapError, WriteGuard};
 use super::{DataStore, DataStoreHeader, DataStoreIndex, DataStorePager};
 
 #[derive(Debug)]
-pub(crate) struct DataStoreWriteGuard {
+pub struct DataStoreWriteGuard {
     inner: WriteGuard,
 }
 
 impl DataStoreWriteGuard {
     #[inline]
     pub fn get_header(&mut self) -> &mut DataStoreHeader {
-        unsafe { &mut *(self.inner.as_mut_ptr() as *mut DataStoreHeader) }
+        unsafe { &mut *self.inner.as_mut_ptr().cast::<DataStoreHeader>() }
     }
 
     #[inline]
@@ -36,7 +36,7 @@ impl DataStoreWriteGuard {
 
 impl From<WriteGuard> for DataStoreWriteGuard {
     fn from(inner: WriteGuard) -> Self {
-        DataStoreWriteGuard { inner }
+        Self { inner }
     }
 }
 
