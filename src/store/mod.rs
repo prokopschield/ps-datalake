@@ -28,9 +28,9 @@ use shared::DataStoreReadGuard;
 pub const MAGIC: [u8; 16] = *b"DataLake\0\0\0\0\0\0\0\0";
 pub const PTR_SIZE: usize = 4;
 pub const CHUNK_SIZE: usize = std::mem::size_of::<DataStorePage>();
-pub const DATA_CHUNK_MIN_SIZE: usize = 75;
+pub const DATA_CHUNK_MIN_SIZE: usize = 47;
 pub const DATA_CHUNK_MAX_RAW_SIZE: usize = 4096;
-pub const DATA_CHUNK_MAX_ENCRYPTED_SIZE: usize = 4117;
+pub const DATA_CHUNK_MAX_ENCRYPTED_SIZE: usize = 4613;
 
 #[repr(C)]
 pub struct DataStoreHeader {
