@@ -1,15 +1,9 @@
 [package]
 name = "ps-datalake"
 version = "0.1.0-2"
+edition = "2021"
 description = "Encrypted flat storage"
 license = "GPL-3.0-or-later"
-edition = "2021"
-
-[profile.dev]
-opt-level = 3
-
-[profile.release]
-opt-level = 3
 
 [dependencies]
 parking_lot = "0.12.3"
@@ -24,3 +18,9 @@ rayon = "1.10.0"
 serde = { version = "1.0.219", features = ["serde_derive"] }
 thiserror = "2.0.12"
 toml = "0.8.22"
+
+[profile.dev]
+opt-level = 3
+
+[profile.release]
+opt-level = 3
