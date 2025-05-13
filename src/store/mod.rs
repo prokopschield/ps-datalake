@@ -59,7 +59,7 @@ pub struct DataStorePage<'lt> {
 
 impl<'lt> DataStorePage<'lt> {
     #[must_use]
-    pub const fn mbuf(&'lt self) -> &'lt DataStorePageMbuf {
+    pub const fn mbuf(&'lt self) -> &'lt DataStorePageMbuf<'lt> {
         &self.mbuf
     }
     #[must_use]
@@ -305,7 +305,7 @@ impl<'lt> DataStore<'lt> {
         chunk.ok_or(PsDataLakeError::NotFound)
     }
 
-    pub fn get_chunk_by_hkey(&'lt self, key: &Hkey) -> Result<Resolved<MbufDataChunk>> {
+    pub fn get_chunk_by_hkey(&'lt self, key: &Hkey) -> Result<Resolved<MbufDataChunk<'lt>>> {
         match key {
             Hkey::Raw(raw) => Ok(Resolved::Data(raw.clone())),
             Hkey::Base64(base64) => {

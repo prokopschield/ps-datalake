@@ -50,7 +50,7 @@ impl<'lt> DataLake<'lt> {
         Ok(lake)
     }
 
-    pub fn get_encrypted_chunk(&'lt self, hash: &Hash) -> Result<MbufDataChunk> {
+    pub fn get_encrypted_chunk(&'lt self, hash: &Hash) -> Result<MbufDataChunk<'lt>> {
         let mut error = PsDataLakeError::NotFound;
 
         for store in &self.stores.readable {
@@ -66,7 +66,7 @@ impl<'lt> DataLake<'lt> {
         Err(error)
     }
 
-    pub fn get_chunk_by_hkey(&'lt self, hkey: &Hkey) -> Result<Resolved<MbufDataChunk>> {
+    pub fn get_chunk_by_hkey(&'lt self, hkey: &Hkey) -> Result<Resolved<MbufDataChunk<'lt>>> {
         hkey.resolve(&|hash| match self.get_encrypted_chunk(hash) {
             Ok(chunk) => Ok(chunk),
             Err(err) => Err(err),
