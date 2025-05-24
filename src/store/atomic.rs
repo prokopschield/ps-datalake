@@ -1,4 +1,4 @@
-use ps_mmap::{PsMmapError, WriteGuard};
+use ps_mmap::{DerefError, WriteGuard};
 
 use super::{DataStore, DataStoreHeader, DataStoreIndex, DataStorePager};
 
@@ -41,7 +41,7 @@ impl From<WriteGuard> for DataStoreWriteGuard {
 }
 
 impl<'lt> TryFrom<&DataStore<'lt>> for DataStoreWriteGuard {
-    type Error = PsMmapError;
+    type Error = DerefError;
 
     fn try_from(value: &DataStore) -> Result<Self, Self::Error> {
         Ok(value.mmap.try_write()?.into())

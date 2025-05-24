@@ -8,13 +8,15 @@ pub enum PsDataLakeError {
     #[error(transparent)]
     IoError(#[from] std::io::Error),
     #[error(transparent)]
+    MmapMapError(#[from] ps_mmap::MapError),
+    #[error("Tried to get a RW-handle on a read-only store.")]
+    MmapReadOnly,
+    #[error(transparent)]
     PsDataChunkError(#[from] ps_datachunk::PsDataChunkError),
     #[error(transparent)]
     PsHashError(#[from] ps_hash::PsHashError),
     #[error(transparent)]
     PsHkeyError(#[from] ps_hkey::PsHkeyError),
-    #[error(transparent)]
-    PsMmapError(#[from] ps_mmap::PsMmapError),
     #[error(transparent)]
     TomlSerError(#[from] Box<toml::ser::Error>),
     #[error(transparent)]
@@ -46,6 +48,14 @@ pub type Result<T> = std::result::Result<T, PsDataLakeError>;
 impl<T> From<PoisonError<T>> for PsDataLakeError {
     fn from(_: PoisonError<T>) -> Self {
         Self::MutexPoisonError
+    }
+}
+
+impl From<ps_mmap::DerefError> for PsDataLakeError {
+    fn from(value: ps_mmap::DerefError) -> Self {
+        match value {
+            ps_mmap::DerefError::ReadOnly => Self::MmapReadOnly,
+        }
     }
 }
 
