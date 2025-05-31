@@ -94,8 +94,7 @@ impl<'lt> DataLake<'lt> {
             match store.put_chunk(chunk) {
                 Ok(chunk) => return Ok(chunk),
                 Err(err) => match err {
-                    PsDataLakeError::DataStoreOutOfSpace => (),
-                    PsDataLakeError::DataStoreNotRw => (),
+                    PsDataLakeError::DataStoreOutOfSpace | PsDataLakeError::DataStoreNotRw => (),
                     _ => Err(err)?,
                 },
             }
@@ -109,8 +108,7 @@ impl<'lt> DataLake<'lt> {
             match store.put_blob(blob) {
                 Ok(chunk) => return Ok(chunk),
                 Err(err) => match err {
-                    PsDataLakeError::DataStoreOutOfSpace => (),
-                    PsDataLakeError::DataStoreNotRw => (),
+                    PsDataLakeError::DataStoreOutOfSpace | PsDataLakeError::DataStoreNotRw => (),
                     _ => Err(err)?,
                 },
             }
