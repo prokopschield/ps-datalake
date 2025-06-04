@@ -2,6 +2,7 @@ mod atomic;
 mod shared;
 
 use std::marker::PhantomData;
+use std::path::Path;
 
 use crate::error::DataStoreCorrupted;
 use crate::error::PsDataLakeError;
@@ -79,7 +80,10 @@ pub struct DataStore<'lt> {
 }
 
 impl<'lt> DataStore<'lt> {
-    pub fn load_mapping(file_path: &str, readonly: bool) -> Result<MemoryMap> {
+    pub fn load_mapping<P>(file_path: P, readonly: bool) -> Result<MemoryMap>
+    where
+        P: AsRef<Path>,
+    {
         Ok(MemoryMap::map(file_path, readonly)?)
     }
 
@@ -112,7 +116,10 @@ impl<'lt> DataStore<'lt> {
         )
     }
 
-    pub fn load(file_path: &str, readonly: bool) -> Result<Self> {
+    pub fn load<P>(file_path: P, readonly: bool) -> Result<Self>
+    where
+        P: AsRef<Path>,
+    {
         use DataStoreCorrupted::{
             DataEndsOutOfBounds, DataOffsetOutOfBounds, IndexDataOverlap, IndexEndsOutOfBounds,
             IndexModuloTooSmall, IndexOffsetOutOfBounds, InvalidDataStoreSize, InvalidMagic,
@@ -191,7 +198,10 @@ impl<'lt> DataStore<'lt> {
         (offset, index_length, data_offset)
     }
 
-    pub fn init(file_path: &str) -> Result<Self> {
+    pub fn init<P>(file_path: &P) -> Result<Self>
+    where
+        P: AsRef<Path>,
+    {
         let readonly = false;
         let mapping = Self::load_mapping(file_path, readonly)?;
 
