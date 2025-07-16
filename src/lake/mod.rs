@@ -9,6 +9,7 @@ use ps_datachunk::MbufDataChunk;
 use ps_hash::Hash;
 use ps_hkey::Hkey;
 use ps_hkey::Resolved;
+use ps_hkey::Store;
 use util::verify_magic;
 
 #[derive(Clone, Default)]
@@ -67,10 +68,7 @@ impl<'lt> DataLake<'lt> {
     }
 
     pub fn get_chunk_by_hkey(&'lt self, hkey: &Hkey) -> Result<Resolved<MbufDataChunk<'lt>>> {
-        hkey.resolve(&|hash| match self.get_encrypted_chunk(hash) {
-            Ok(chunk) => Ok(chunk),
-            Err(err) => Err(err),
-        })
+        hkey.resolve(self)
     }
 
     pub fn put_encrypted_chunk<C: DataChunk>(&'lt self, chunk: &C) -> Result<Hkey> {
@@ -115,5 +113,18 @@ impl<'lt> DataLake<'lt> {
         }
 
         Err(PsDataLakeError::DataLakeOutOfStores)
+    }
+}
+
+impl<'lt> Store for DataLake<'lt> {
+    type Chunk<'c> = MbufDataChunk<'c> where 'lt: 'c;
+    type Error = PsDataLakeError;
+
+    fn get<'a>(&'a self, hash: &Hash) -> std::result::Result<Self::Chunk<'a>, Self::Error> {
+        self.get_encrypted_chunk(hash)
+    }
+
+    fn put(&self, data: &[u8]) -> std::result::Result<Hkey, Self::Error> {
+        self.put_blob(data)
     }
 }

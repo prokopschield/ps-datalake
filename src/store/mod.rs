@@ -19,6 +19,7 @@ use ps_hash::Hash;
 use ps_hkey::Hkey;
 use ps_hkey::LongHkeyExpanded;
 use ps_hkey::Resolved;
+use ps_hkey::Store;
 use ps_mbuf::Mbuf;
 use ps_mmap::MemoryMap;
 use ps_str::Utf8Encoder;
@@ -354,7 +355,7 @@ impl<'lt> DataStore<'lt> {
 
                 Ok(chunk.into())
             }
-            _ => key.resolve(&|hash| self.get_chunk_by_hash(hash)),
+            _ => key.resolve(self),
         }
     }
 
@@ -480,9 +481,7 @@ impl<'lt> DataStore<'lt> {
             return self.put_blob(blob);
         }
 
-        let store = |blob: &[u8]| self.put_blob(blob);
-
-        LongHkeyExpanded::from_blob::<PsDataLakeError, _, _>(&store, blob)?.shrink(&store)
+        LongHkeyExpanded::from_blob(self, blob)?.shrink(self)
     }
 
     pub fn put_blob(&'lt self, blob: &[u8]) -> Result<Hkey> {
@@ -493,5 +492,18 @@ impl<'lt> DataStore<'lt> {
         } else {
             self.put_chunk(&BorrowedDataChunk::from_data(blob)?)
         }
+    }
+}
+
+impl<'lt> Store for DataStore<'lt> {
+    type Chunk<'c> = MbufDataChunk<'c> where 'lt: 'c;
+    type Error = PsDataLakeError;
+
+    fn get<'a>(&'a self, hash: &Hash) -> std::result::Result<Self::Chunk<'a>, Self::Error> {
+        self.get_chunk_by_hash(hash)
+    }
+
+    fn put(&self, data: &[u8]) -> std::result::Result<Hkey, Self::Error> {
+        self.put_blob(data)
     }
 }
