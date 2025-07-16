@@ -4,7 +4,7 @@
 #[allow(clippy::cast_possible_truncation)]
 #[allow(clippy::cast_sign_loss)]
 pub fn get_le_prime(limit: u32) -> u32 {
-    let q = (limit as f32).sqrt() as u32;
+    let q = f64::from(limit).sqrt() as u32;
     let mut factor = 3;
     let mut bits: Vec<bool> = vec![true; (limit as usize + 1) >> 1];
 
