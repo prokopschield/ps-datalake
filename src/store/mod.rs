@@ -73,7 +73,7 @@ impl<'lt> DataStorePage<'lt> {
 pub type DataStoreIndex<'lt> = Mbuf<'lt, (), u32>;
 pub type DataStorePager<'lt> = Mbuf<'lt, (), DataStorePage<'lt>>;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct DataStore<'lt> {
     mmap: MemoryMap,
     readonly: bool,

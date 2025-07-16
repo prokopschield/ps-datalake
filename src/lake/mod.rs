@@ -12,12 +12,13 @@ use ps_hkey::Resolved;
 use ps_hkey::Store;
 use util::verify_magic;
 
-#[derive(Clone, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct DataLakeStores<'lt> {
     pub readable: Vec<DataStore<'lt>>,
     pub writable: Vec<DataStore<'lt>>,
 }
 
+#[derive(Clone, Debug, Default)]
 pub struct DataLake<'lt> {
     pub config: DataLakeConfig,
     pub stores: DataLakeStores<'lt>,
