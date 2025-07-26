@@ -128,4 +128,9 @@ impl<'lt> Store for DataLake<'lt> {
     fn put(&self, data: &[u8]) -> std::result::Result<Hkey, Self::Error> {
         self.put_blob(data)
     }
+
+    fn put_encrypted<C: DataChunk>(&self, chunk: C) -> std::result::Result<(), Self::Error> {
+        self.put_encrypted_chunk(&chunk)?;
+        Ok(())
+    }
 }
