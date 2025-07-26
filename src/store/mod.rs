@@ -20,6 +20,9 @@ use ps_hkey::Hkey;
 use ps_hkey::LongHkeyExpanded;
 use ps_hkey::Resolved;
 use ps_hkey::Store;
+use ps_hkey::MAX_DECRYPTED_SIZE;
+use ps_hkey::MAX_ENCRYPTED_SIZE;
+use ps_hkey::MAX_SIZE_RAW;
 use ps_mbuf::Mbuf;
 use ps_mmap::MemoryMap;
 use ps_str::Utf8Encoder;
@@ -30,9 +33,6 @@ use shared::DataStoreReadGuard;
 pub const MAGIC: [u8; 16] = *b"DataLake\0\0\0\0\0\0\0\0";
 pub const PTR_SIZE: usize = 4;
 pub const CHUNK_SIZE: usize = std::mem::size_of::<DataStorePage>();
-pub const DATA_CHUNK_MIN_SIZE: usize = 47;
-pub const DATA_CHUNK_MAX_RAW_SIZE: usize = 4096;
-pub const DATA_CHUNK_MAX_ENCRYPTED_SIZE: usize = 4613;
 
 #[repr(C)]
 pub struct DataStoreHeader {
@@ -432,7 +432,7 @@ impl<'lt> DataStore<'lt> {
     pub fn put_encrypted_chunk<C: DataChunk>(&'lt self, chunk: &C) -> Result<Hkey> {
         let length = chunk.data_ref().len();
 
-        if !(DATA_CHUNK_MIN_SIZE..=DATA_CHUNK_MAX_ENCRYPTED_SIZE).contains(&length) {
+        if length <= MAX_SIZE_RAW || length > MAX_ENCRYPTED_SIZE {
             return self.put_chunk(chunk);
         }
 
@@ -456,11 +456,11 @@ impl<'lt> DataStore<'lt> {
     }
 
     pub fn put_chunk<C: DataChunk>(&'lt self, chunk: &C) -> Result<Hkey> {
-        if chunk.data_ref().len() < DATA_CHUNK_MIN_SIZE {
+        if chunk.data_ref().len() <= MAX_SIZE_RAW {
             return Ok(Hkey::from_raw(chunk.data_ref()));
         }
 
-        if chunk.data_ref().len() > DATA_CHUNK_MAX_RAW_SIZE {
+        if chunk.data_ref().len() > MAX_DECRYPTED_SIZE {
             return self.put_large_chunk(chunk);
         }
 
@@ -477,7 +477,7 @@ impl<'lt> DataStore<'lt> {
 
     pub fn put_large_blob(&'lt self, blob: &[u8]) -> Result<Hkey> {
         // sanity check
-        if blob.len() < DATA_CHUNK_MAX_RAW_SIZE {
+        if blob.len() <= MAX_DECRYPTED_SIZE {
             return self.put_blob(blob);
         }
 
@@ -485,9 +485,9 @@ impl<'lt> DataStore<'lt> {
     }
 
     pub fn put_blob(&'lt self, blob: &[u8]) -> Result<Hkey> {
-        if blob.len() < DATA_CHUNK_MIN_SIZE {
+        if blob.len() <= MAX_SIZE_RAW {
             Ok(Hkey::from_raw(blob))
-        } else if blob.len() > DATA_CHUNK_MAX_RAW_SIZE {
+        } else if blob.len() > MAX_DECRYPTED_SIZE {
             self.put_large_blob(blob)
         } else {
             self.put_chunk(&BorrowedDataChunk::from_data(blob)?)
