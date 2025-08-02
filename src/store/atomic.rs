@@ -40,7 +40,7 @@ impl From<WriteGuard> for DataStoreWriteGuard {
     }
 }
 
-impl<'lt> TryFrom<&DataStore<'lt>> for DataStoreWriteGuard {
+impl TryFrom<&DataStore<'_>> for DataStoreWriteGuard {
     type Error = DerefError;
 
     fn try_from(value: &DataStore) -> Result<Self, Self::Error> {
