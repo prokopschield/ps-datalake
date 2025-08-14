@@ -28,7 +28,7 @@ impl<'lt> DataLake<'lt> {
     pub fn init(config: DataLakeConfig) -> Result<Self> {
         let mut stores = DataLakeStores::default();
 
-        for entry in &config.store {
+        for entry in &config.stores {
             if entry.readonly {
                 let store = DataStore::load(&entry.filename, true)?;
 

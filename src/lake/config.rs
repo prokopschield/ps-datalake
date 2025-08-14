@@ -10,7 +10,7 @@ pub struct ConfigStoreEntry {
 
 #[derive(Clone, Debug, Default, Deserialize, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub struct DataLakeConfig {
-    pub store: Vec<ConfigStoreEntry>,
+    pub stores: Vec<ConfigStoreEntry>,
 }
 
 impl DataLakeConfig {
