@@ -14,7 +14,7 @@ impl DataStoreWriteGuard {
     }
 
     #[inline]
-    pub fn get_index(&mut self) -> &mut DataStoreIndex {
+    pub fn get_index(&mut self) -> &mut DataStoreIndex<'_> {
         unsafe {
             DataStoreIndex::at_offset_mut(
                 self.inner.as_mut_ptr(),
@@ -24,7 +24,7 @@ impl DataStoreWriteGuard {
     }
 
     #[inline]
-    pub fn get_pager(&mut self) -> &mut DataStorePager {
+    pub fn get_pager(&mut self) -> &mut DataStorePager<'_> {
         unsafe {
             DataStorePager::at_offset_mut(
                 self.inner.as_mut_ptr(),

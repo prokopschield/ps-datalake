@@ -256,7 +256,7 @@ impl<'lt> DataStore<'lt> {
         Ok(store)
     }
 
-    pub fn get_chunk_by_index(&self, index: usize) -> Result<MbufDataChunk> {
+    pub fn get_chunk_by_index(&self, index: usize) -> Result<MbufDataChunk<'_>> {
         match self.shared().get_pager().get(index) {
             Some(page) => Ok(page.mbuf().into()),
             None => Err(PsDataLakeError::RangeError),
@@ -271,7 +271,7 @@ impl<'lt> DataStore<'lt> {
     pub fn get_bucket_index_chunk_by_hash(
         &self,
         hash: &Hash,
-    ) -> Result<(u32, u32, Option<MbufDataChunk>)> {
+    ) -> Result<(u32, u32, Option<MbufDataChunk<'_>>)> {
         let shared = self.shared();
         let header = shared.get_header();
         let index = shared.get_index();
@@ -377,7 +377,7 @@ impl<'lt> DataStore<'lt> {
     pub fn put_opaque_chunk<C: DataChunk>(
         &self,
         opaque_chunk: &C,
-    ) -> Result<(u32, u32, MbufDataChunk)> {
+    ) -> Result<(u32, u32, MbufDataChunk<'_>)> {
         let existing = self.get_bucket_index_chunk_by_hash(opaque_chunk.hash_ref())?;
         let (bucket, index, existing) = existing;
 
