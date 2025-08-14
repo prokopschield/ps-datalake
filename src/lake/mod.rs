@@ -118,7 +118,10 @@ impl<'lt> DataLake<'lt> {
 }
 
 impl<'lt> Store for DataLake<'lt> {
-    type Chunk<'c> = MbufDataChunk<'c> where 'lt: 'c;
+    type Chunk<'c>
+        = MbufDataChunk<'c>
+    where
+        'lt: 'c;
     type Error = PsDataLakeError;
 
     fn get<'a>(&'a self, hash: &Hash) -> std::result::Result<Self::Chunk<'a>, Self::Error> {

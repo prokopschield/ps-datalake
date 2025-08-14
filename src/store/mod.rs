@@ -496,7 +496,10 @@ impl<'lt> DataStore<'lt> {
 }
 
 impl<'lt> Store for DataStore<'lt> {
-    type Chunk<'c> = MbufDataChunk<'c> where 'lt: 'c;
+    type Chunk<'c>
+        = MbufDataChunk<'c>
+    where
+        'lt: 'c;
     type Error = PsDataLakeError;
 
     fn get<'a>(&'a self, hash: &Hash) -> std::result::Result<Self::Chunk<'a>, Self::Error> {
