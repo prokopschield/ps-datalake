@@ -277,6 +277,8 @@ impl<'lt> DataStore<'lt> {
         let index = shared.get_index();
         let bucket = Self::calculate_index_bucket(hash, header.index_modulo);
 
+        drop(shared);
+
         for bucket in bucket..index.len() as u32 {
             let index = index
                 .get(bucket as usize)
