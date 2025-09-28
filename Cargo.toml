@@ -8,15 +8,15 @@ license = "GPL-3.0-or-later"
 [dependencies]
 parking_lot = "0.12.4"
 ps-base64 = "0.1.0-5"
-ps-datachunk = "0.1.0-30"
-ps-hash = "0.1.0-18"
-ps-hkey = "0.1.0-26"
+ps-datachunk = "0.1.0-31"
+ps-hash = "0.1.0-19"
+ps-hkey = "0.1.0-28"
 ps-mbuf = "0.1.0-4"
-ps-mmap = "0.1.0-12"
+ps-mmap = "0.1.0-13"
 ps-str = "0.1.0-2"
-serde = { version = "1.0.219", features = ["serde_derive"] }
+serde = { version = "1.0.228", features = ["serde_derive"] }
 thiserror = "2.0.16"
-toml = "0.9.5"
+toml = "0.9.7"
 
 [profile.dev]
 opt-level = 3
