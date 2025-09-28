@@ -14,7 +14,6 @@ ps-hkey = "0.1.0-26"
 ps-mbuf = "0.1.0-4"
 ps-mmap = "0.1.0-12"
 ps-str = "0.1.0-2"
-rayon = "1.11.0"
 serde = { version = "1.0.219", features = ["serde_derive"] }
 thiserror = "2.0.16"
 toml = "0.9.5"

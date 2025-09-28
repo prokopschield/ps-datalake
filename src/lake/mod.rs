@@ -8,7 +8,6 @@ use ps_datachunk::DataChunk;
 use ps_datachunk::MbufDataChunk;
 use ps_hash::Hash;
 use ps_hkey::Hkey;
-use ps_hkey::Resolved;
 use ps_hkey::Store;
 use util::verify_magic;
 
@@ -66,10 +65,6 @@ impl<'lt> DataLake<'lt> {
         }
 
         Err(error)
-    }
-
-    pub fn get_chunk_by_hkey(&'lt self, hkey: &Hkey) -> Result<Resolved<MbufDataChunk<'lt>>> {
-        hkey.resolve(self)
     }
 
     pub fn put_encrypted_chunk<C: DataChunk>(&'lt self, chunk: &C) -> Result<Hkey> {

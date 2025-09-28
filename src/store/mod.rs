@@ -14,11 +14,9 @@ use ps_datachunk::utils::round_up;
 use ps_datachunk::BorrowedDataChunk;
 use ps_datachunk::DataChunk;
 use ps_datachunk::MbufDataChunk;
-use ps_datachunk::OwnedDataChunk;
 use ps_hash::Hash;
 use ps_hkey::Hkey;
 use ps_hkey::LongHkeyExpanded;
-use ps_hkey::Resolved;
 use ps_hkey::Store;
 use ps_hkey::MAX_DECRYPTED_SIZE;
 use ps_hkey::MAX_ENCRYPTED_SIZE;
@@ -26,8 +24,6 @@ use ps_hkey::MAX_SIZE_RAW;
 use ps_mbuf::Mbuf;
 use ps_mmap::MemoryMap;
 use ps_str::Utf8Encoder;
-use rayon::iter::IntoParallelRefIterator;
-use rayon::iter::ParallelIterator;
 use shared::DataStoreReadGuard;
 
 pub const MAGIC: [u8; 16] = *b"DataLake\0\0\0\0\0\0\0\0";
@@ -316,49 +312,6 @@ impl<'lt> DataStore<'lt> {
         let (_, _, chunk) = self.get_bucket_index_chunk_by_hash(hash)?;
 
         chunk.ok_or(PsDataLakeError::NotFound)
-    }
-
-    pub fn get_chunk_by_hkey(&'lt self, key: &Hkey) -> Result<Resolved<MbufDataChunk<'lt>>> {
-        match key {
-            Hkey::Raw(raw) => Ok(Resolved::Data(raw.clone())),
-            Hkey::Base64(base64) => {
-                Ok(OwnedDataChunk::from_data(ps_base64::decode(base64.as_bytes()))?.into())
-            }
-            Hkey::Direct(hash) => Ok(Resolved::Custom(self.get_chunk_by_hash(hash)?)),
-            Hkey::Encrypted(hash, key) => {
-                let chunk = self.get_chunk_by_hash(hash)?;
-                let decrypted = chunk.decrypt(key.as_bytes())?;
-
-                Ok(decrypted.into())
-            }
-            Hkey::ListRef(hash, key) => {
-                let hkey = Hkey::Encrypted(hash.clone(), key.clone());
-                let long = Self::get_chunk_by_hkey(self, &hkey)?;
-                let hkey = Hkey::parse(long.data_ref());
-
-                self.get_chunk_by_hkey(&hkey)
-            }
-            Hkey::List(list) => {
-                // Parallel fetching of chunks
-                let chunks: Vec<Result<Resolved<MbufDataChunk>>> = list
-                    .par_iter()
-                    .map(|hkey| self.get_chunk_by_hkey(hkey))
-                    .collect();
-
-                // Collect and concatenate data from chunks
-                let buffer: Result<Vec<u8>> =
-                    chunks.into_iter().try_fold(vec![], |mut buffer, chunk| {
-                        buffer.extend_from_slice(chunk?.data_ref());
-                        Ok(buffer)
-                    });
-
-                // Convert the concatenated data into an OwnedDataChunk
-                let chunk = OwnedDataChunk::from_data(buffer?)?;
-
-                Ok(chunk.into())
-            }
-            _ => key.resolve(self),
-        }
     }
 
     /// Stores opaque data and returns a tuple containing the bucket, index, and [`DataChunk`].
