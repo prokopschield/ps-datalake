@@ -1,6 +1,6 @@
 use ps_mmap::{DerefError, WriteGuard};
 
-use crate::error::AlignmentError;
+use crate::error::{AlignmentError, OffsetError};
 
 use super::{DataStore, DataStoreHeader, DataStoreIndex, DataStorePager};
 
@@ -22,21 +22,21 @@ impl DataStoreWriteGuard {
     }
 
     #[inline]
-    pub fn get_index(&mut self) -> Result<&mut DataStoreIndex<'_>, AlignmentError> {
+    pub fn get_index(&mut self) -> Result<&mut DataStoreIndex<'_>, OffsetError> {
         Ok(unsafe {
             DataStoreIndex::at_offset_mut(
                 self.inner.as_mut_ptr(),
-                self.get_header()?.index_offset as usize,
+                usize::try_from(self.get_header()?.index_offset)?,
             )
         })
     }
 
     #[inline]
-    pub fn get_pager(&mut self) -> Result<&mut DataStorePager<'_>, AlignmentError> {
+    pub fn get_pager(&mut self) -> Result<&mut DataStorePager<'_>, OffsetError> {
         Ok(unsafe {
             DataStorePager::at_offset_mut(
                 self.inner.as_mut_ptr(),
-                self.get_header()?.data_offset as usize,
+                usize::try_from(self.get_header()?.data_offset)?,
             )
         })
     }

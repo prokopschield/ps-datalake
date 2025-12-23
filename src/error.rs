@@ -1,4 +1,4 @@
-use std::{fmt::Display, sync::PoisonError};
+use std::{fmt::Display, num::TryFromIntError, sync::PoisonError};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -13,6 +13,8 @@ pub enum PsDataLakeError {
     MmapMapError(#[from] ps_mmap::MapError),
     #[error("Tried to get a RW-handle on a read-only store.")]
     MmapReadOnly,
+    #[error(transparent)]
+    Offset(#[from] OffsetError),
     #[error(transparent)]
     PsDataChunkError(#[from] ps_datachunk::PsDataChunkError),
     #[error(transparent)]
@@ -52,6 +54,14 @@ impl Display for AlignmentError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("DataStore is not memory-aligned properly.")
     }
+}
+
+#[derive(Error, Debug)]
+pub enum OffsetError {
+    #[error(transparent)]
+    Alignment(#[from] AlignmentError),
+    #[error("Integer conversion error")]
+    TryFromInt(#[from] TryFromIntError),
 }
 
 impl<T> From<PoisonError<T>> for PsDataLakeError {
