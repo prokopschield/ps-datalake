@@ -231,7 +231,7 @@ impl<'lt> DataStore<'lt> {
         }
 
         let mut guard = DataStoreWriteGuard::from(map);
-        let header = guard.get_header();
+        let header = guard.get_header()?;
 
         header.magic = MAGIC;
         header.index_modulo = index_modulo;
@@ -346,11 +346,11 @@ impl<'lt> DataStore<'lt> {
 
         let mut atomic = self.atomic()?;
 
-        let next_free_chunk = atomic.get_header().free_chunk as usize;
+        let next_free_chunk = atomic.get_header()?.free_chunk as usize;
 
         let required_chunks = DataStorePage::bytes_to_pages(opaque_chunk.data_ref().len());
         let available_chunks = atomic
-            .get_pager()
+            .get_pager()?
             .len()
             .checked_sub(next_free_chunk)
             .ok_or(PsDataLakeError::DataStoreOutOfSpace)?;
@@ -361,7 +361,7 @@ impl<'lt> DataStore<'lt> {
 
         let pointer = std::ptr::from_ref(
             atomic
-                .get_pager()
+                .get_pager()?
                 .get(next_free_chunk)
                 .ok_or(PsDataLakeError::RangeError)?
                 .mbuf(),
@@ -371,9 +371,9 @@ impl<'lt> DataStore<'lt> {
             DataStorePageMbuf::write_to_ptr(pointer, *opaque_chunk.hash(), opaque_chunk.data_ref())
         };
 
-        atomic.get_header().free_chunk += required_chunks as u32;
+        atomic.get_header()?.free_chunk += required_chunks as u32;
 
-        atomic.get_index()[bucket as usize] = next_free_chunk as u32;
+        atomic.get_index()?[bucket as usize] = next_free_chunk as u32;
 
         drop(atomic);
 

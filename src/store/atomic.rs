@@ -1,5 +1,7 @@
 use ps_mmap::{DerefError, WriteGuard};
 
+use crate::error::AlignmentError;
+
 use super::{DataStore, DataStoreHeader, DataStoreIndex, DataStorePager};
 
 #[derive(Debug)]
@@ -9,28 +11,34 @@ pub struct DataStoreWriteGuard {
 
 impl DataStoreWriteGuard {
     #[inline]
-    pub fn get_header(&mut self) -> &mut DataStoreHeader {
-        unsafe { &mut *self.inner.as_mut_ptr().cast::<DataStoreHeader>() }
+    pub fn get_header(&mut self) -> Result<&mut DataStoreHeader, AlignmentError> {
+        let ptr: *mut DataStoreHeader = self.inner.as_mut_ptr().cast();
+
+        if !ptr.is_aligned() {
+            return Err(AlignmentError);
+        }
+
+        Ok(unsafe { &mut *ptr })
     }
 
     #[inline]
-    pub fn get_index(&mut self) -> &mut DataStoreIndex<'_> {
-        unsafe {
+    pub fn get_index(&mut self) -> Result<&mut DataStoreIndex<'_>, AlignmentError> {
+        Ok(unsafe {
             DataStoreIndex::at_offset_mut(
                 self.inner.as_mut_ptr(),
-                self.get_header().index_offset as usize,
+                self.get_header()?.index_offset as usize,
             )
-        }
+        })
     }
 
     #[inline]
-    pub fn get_pager(&mut self) -> &mut DataStorePager<'_> {
-        unsafe {
+    pub fn get_pager(&mut self) -> Result<&mut DataStorePager<'_>, AlignmentError> {
+        Ok(unsafe {
             DataStorePager::at_offset_mut(
                 self.inner.as_mut_ptr(),
-                self.get_header().data_offset as usize,
+                self.get_header()?.data_offset as usize,
             )
-        }
+        })
     }
 }
 

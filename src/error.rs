@@ -1,8 +1,10 @@
-use std::sync::PoisonError;
+use std::{fmt::Display, sync::PoisonError};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum PsDataLakeError {
+    #[error(transparent)]
+    AlignmentError(#[from] AlignmentError),
     #[error(transparent)]
     DataStoreCorrupted(#[from] DataStoreCorrupted),
     #[error(transparent)]
@@ -42,6 +44,15 @@ pub enum PsDataLakeError {
 }
 
 pub type Result<T> = std::result::Result<T, PsDataLakeError>;
+
+#[derive(Error, Debug)]
+pub struct AlignmentError;
+
+impl Display for AlignmentError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("DataStore is not memory-aligned properly.")
+    }
+}
 
 impl<T> From<PoisonError<T>> for PsDataLakeError {
     fn from(_: PoisonError<T>) -> Self {
