@@ -14,8 +14,6 @@ pub enum PsDataLakeError {
     #[error(transparent)]
     PsDataChunkError(#[from] ps_datachunk::PsDataChunkError),
     #[error(transparent)]
-    PsHashError(#[from] ps_hash::PsHashError),
-    #[error(transparent)]
     PsHkeyError(#[from] ps_hkey::PsHkeyError),
     #[error(transparent)]
     TomlSerError(#[from] Box<toml::ser::Error>),

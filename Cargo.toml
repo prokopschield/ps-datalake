@@ -6,17 +6,17 @@ description = "Encrypted flat storage"
 license = "GPL-3.0-or-later"
 
 [dependencies]
-parking_lot = "0.12.4"
-ps-base64 = "0.1.0-5"
-ps-datachunk = "0.1.0-31"
-ps-hash = "0.1.0-19"
-ps-hkey = "0.1.0-28"
-ps-mbuf = "0.1.0-4"
-ps-mmap = "0.1.0-13"
+parking_lot = "0.12.5"
+ps-datachunk = "0.1.0-34"
+ps-hash = "0.1.0-24"
+ps-hkey = "0.1.0-32"
+ps-mbuf = "0.1.0-5"
+ps-mmap = "0.1.0-14"
 ps-str = "0.1.0-2"
+ps-util = "0.1.0-6"
 serde = { version = "1.0.228", features = ["serde_derive"] }
-thiserror = "2.0.16"
-toml = "0.9.7"
+thiserror = "2.0.17"
+toml = "0.9.10"
 
 [profile.dev]
 opt-level = 3

@@ -9,7 +9,6 @@ use crate::error::PsDataLakeError;
 use crate::error::Result;
 use crate::helpers::sieve;
 use atomic::DataStoreWriteGuard;
-use ps_base64::base64;
 use ps_datachunk::utils::round_up;
 use ps_datachunk::BorrowedDataChunk;
 use ps_datachunk::DataChunk;
@@ -24,6 +23,7 @@ use ps_hkey::MAX_SIZE_RAW;
 use ps_mbuf::Mbuf;
 use ps_mmap::MemoryMap;
 use ps_str::Utf8Encoder;
+use ps_util::Array;
 use shared::DataStoreReadGuard;
 
 pub const MAGIC: [u8; 16] = *b"DataLake\0\0\0\0\0\0\0\0";
@@ -261,7 +261,7 @@ impl<'lt> DataStore<'lt> {
 
     #[must_use]
     pub fn calculate_index_bucket(hash: &Hash, index_modulo: u32) -> u32 {
-        (u32::from_be_bytes(base64::sized_decode::<4>(&hash.as_bytes()[..6]))) % index_modulo
+        (u32::from_be_bytes(*hash.digest().subarray(0))) % index_modulo
     }
 
     pub fn get_bucket_index_chunk_by_hash(
