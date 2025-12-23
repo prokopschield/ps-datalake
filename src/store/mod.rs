@@ -171,8 +171,10 @@ impl<'lt> DataStore<'lt> {
             Err(IndexDataOverlap(index_end_offset, data_start_offset))?;
         }
 
-        if header.index_modulo > (index.len() as u32) {
-            Err(IndexModuloTooSmall(header.index_modulo, index.len() as u32))?;
+        let index_len_u32 = u32::try_from(index.len())?;
+
+        if header.index_modulo > (index_len_u32) {
+            Err(IndexModuloTooSmall(header.index_modulo, index_len_u32))?;
         }
 
         Ok(store)
@@ -205,7 +207,7 @@ impl<'lt> DataStore<'lt> {
         let total_length = mapping.len();
         let (index_offset, index_length, data_offset) = Self::derive_index_bounds(total_length);
         let index_modulo_max = index_length * 99 / 100;
-        let index_modulo = sieve::get_le_prime(index_modulo_max as u32);
+        let index_modulo = sieve::get_le_prime(u32::try_from(index_modulo_max)?);
 
         if (data_offset + std::mem::size_of::<DataStorePager>()) > mapping.len() {
             Err(PsDataLakeError::InitFailedNotEnoughSpace(mapping.len()))?;
@@ -275,7 +277,7 @@ impl<'lt> DataStore<'lt> {
 
         drop(shared);
 
-        for bucket in bucket..index.len() as u32 {
+        for bucket in bucket..u32::try_from(index.len())? {
             let index = index
                 .get(bucket as usize)
                 .ok_or(PsDataLakeError::IndexBucketOverflow)?;
@@ -346,7 +348,8 @@ impl<'lt> DataStore<'lt> {
 
         let mut atomic = self.atomic()?;
 
-        let next_free_chunk = atomic.get_header()?.free_chunk as usize;
+        let next_free_chunk_u32 = atomic.get_header()?.free_chunk;
+        let next_free_chunk = usize::try_from(next_free_chunk_u32)?;
 
         let required_chunks = DataStorePage::bytes_to_pages(opaque_chunk.data_ref().len());
         let available_chunks = atomic
@@ -371,15 +374,15 @@ impl<'lt> DataStore<'lt> {
             DataStorePageMbuf::write_to_ptr(pointer, *opaque_chunk.hash(), opaque_chunk.data_ref())
         };
 
-        atomic.get_header()?.free_chunk += required_chunks as u32;
+        atomic.get_header()?.free_chunk += u32::try_from(required_chunks)?;
 
-        atomic.get_index()?[bucket as usize] = next_free_chunk as u32;
+        atomic.get_index()?[bucket as usize] = next_free_chunk_u32;
 
         drop(atomic);
 
         Ok((
             bucket,
-            next_free_chunk as u32,
+            next_free_chunk_u32,
             self.get_chunk_by_index(next_free_chunk)?,
         ))
     }

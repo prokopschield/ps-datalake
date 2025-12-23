@@ -23,6 +23,8 @@ pub enum PsDataLakeError {
     TomlSerError(#[from] Box<toml::ser::Error>),
     #[error(transparent)]
     TomlDeError(#[from] Box<toml::de::Error>),
+    #[error("Integer conversion error")]
+    TryFromInt(#[from] TryFromIntError),
     #[error("Index out of range")]
     RangeError,
     #[error("DataChunk not found")]
