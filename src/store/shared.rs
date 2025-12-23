@@ -2,6 +2,8 @@ use std::marker::PhantomData;
 
 use ps_mmap::ReadGuard;
 
+use crate::error::{AlignmentError, OffsetError};
+
 use super::{DataStore, DataStoreHeader, DataStoreIndex, DataStorePager};
 
 #[derive(Debug)]
@@ -12,22 +14,34 @@ pub struct DataStoreReadGuard<'lt> {
 
 impl<'lt> DataStoreReadGuard<'lt> {
     #[inline]
-    pub fn get_header(&self) -> &'lt DataStoreHeader {
-        unsafe { &*self.inner.as_ptr().cast::<DataStoreHeader>() }
+    pub fn get_header(&self) -> Result<&'lt DataStoreHeader, AlignmentError> {
+        let ptr: *const DataStoreHeader = self.inner.as_ptr().cast();
+
+        if !ptr.is_aligned() {
+            return Err(AlignmentError);
+        }
+
+        Ok(unsafe { &*ptr })
     }
 
     #[inline]
-    pub fn get_index(&self) -> &'lt DataStoreIndex<'lt> {
-        unsafe {
-            DataStoreIndex::at_offset(self.inner.as_ptr(), self.get_header().index_offset as usize)
-        }
+    pub fn get_index(&self) -> Result<&'lt DataStoreIndex<'lt>, OffsetError> {
+        Ok(unsafe {
+            DataStoreIndex::at_offset(
+                self.inner.as_ptr(),
+                usize::try_from(self.get_header()?.index_offset)?,
+            )
+        })
     }
 
     #[inline]
-    pub fn get_pager(&self) -> &'lt DataStorePager<'lt> {
-        unsafe {
-            DataStorePager::at_offset(self.inner.as_ptr(), self.get_header().data_offset as usize)
-        }
+    pub fn get_pager(&self) -> Result<&'lt DataStorePager<'lt>, OffsetError> {
+        Ok(unsafe {
+            DataStorePager::at_offset(
+                self.inner.as_ptr(),
+                usize::try_from(self.get_header()?.data_offset)?,
+            )
+        })
     }
 }
 

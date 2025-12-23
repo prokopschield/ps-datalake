@@ -136,7 +136,7 @@ impl<'lt> DataStore<'lt> {
         };
 
         let shared = store.shared();
-        let header = shared.get_header();
+        let header = shared.get_header()?;
 
         if header.magic != MAGIC {
             Err(InvalidMagic(header.magic.to_utf8_string()))?;
@@ -150,8 +150,8 @@ impl<'lt> DataStore<'lt> {
             Err(DataOffsetOutOfBounds(header.data_offset, size))?;
         }
 
-        let index = shared.get_index();
-        let pager = shared.get_pager();
+        let index = shared.get_index()?;
+        let pager = shared.get_pager()?;
 
         let base_ptr = store.mmap.as_ptr();
 
@@ -253,7 +253,7 @@ impl<'lt> DataStore<'lt> {
     }
 
     pub fn get_chunk_by_index(&self, index: usize) -> Result<MbufDataChunk<'_>> {
-        match self.shared().get_pager().get(index) {
+        match self.shared().get_pager()?.get(index) {
             Some(page) => Ok(page.mbuf().into()),
             None => Err(PsDataLakeError::RangeError),
         }
@@ -269,8 +269,8 @@ impl<'lt> DataStore<'lt> {
         hash: &Hash,
     ) -> Result<(u32, u32, Option<MbufDataChunk<'_>>)> {
         let shared = self.shared();
-        let header = shared.get_header();
-        let index = shared.get_index();
+        let header = shared.get_header()?;
+        let index = shared.get_index()?;
         let bucket = Self::calculate_index_bucket(hash, header.index_modulo);
 
         drop(shared);
