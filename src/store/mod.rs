@@ -96,12 +96,17 @@ impl<'lt> DataStore<'lt> {
     where
         P: AsRef<Path>,
     {
+        let mmap = Self::load_mapping(file_path, readonly)?;
+
+        Self::load_with_mmap(mmap, readonly)
+    }
+
+    fn load_with_mmap(mmap: MemoryMap, readonly: bool) -> Result<Self> {
         use DataStoreCorrupted::{
             DataEndsOutOfBounds, DataOffsetOutOfBounds, IndexDataOverlap, IndexEndsOutOfBounds,
             IndexModuloTooSmall, IndexOffsetOutOfBounds, InvalidDataStoreSize, InvalidMagic,
         };
 
-        let mmap = Self::load_mapping(file_path, readonly)?;
         let size = mmap.len();
 
         if size < std::mem::size_of::<DataStoreHeader>() {
@@ -222,7 +227,7 @@ impl<'lt> DataStore<'lt> {
 
         drop(guard);
 
-        let store = Self::load(file_path, false)?;
+        let store = Self::load_with_mmap(mapping, false)?;
 
         store.put_opaque_chunk(&BorrowedDataChunk::from_data(
             b"<< DATA SEGMENT BEGINS HERE >>",
