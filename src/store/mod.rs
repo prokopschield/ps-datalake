@@ -201,19 +201,14 @@ impl<'lt> DataStore<'lt> {
         }
 
         let mut map = mapping.try_write()?;
+        let map_ptr = map.as_mut_ptr();
+
+        unsafe { DataStoreIndex::init_at_offset(map_ptr, index_offset, (), index_length).fill(0) };
 
         unsafe {
-            DataStoreIndex::init_at_ptr(
-                map[index_offset..index_offset].as_mut_ptr(),
-                (),
-                index_length,
-            )
-        }
-        .fill(0);
-
-        unsafe {
-            DataStorePager::init_at_ptr(
-                map[data_offset..data_offset].as_mut_ptr(),
+            DataStorePager::init_at_offset(
+                map_ptr,
+                data_offset,
                 (),
                 (total_length - data_offset) / CHUNK_SIZE,
             );
