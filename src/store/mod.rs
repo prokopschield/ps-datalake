@@ -255,10 +255,12 @@ impl<'lt> DataStore<'lt> {
     }
 
     pub fn get_chunk_by_index(&self, index: usize) -> Result<MbufDataChunk<'_>> {
-        match self.shared().get_pager()?.get(index) {
-            Some(page) => Ok(page.mbuf().into()),
-            None => Err(PsDataLakeError::RangeError),
-        }
+        self.shared()
+            .get_pager()?
+            .get(index)
+            .map_or(Err(PsDataLakeError::RangeError), |page| {
+                Ok(page.mbuf().into())
+            })
     }
 
     #[must_use]
