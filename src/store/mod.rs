@@ -164,6 +164,8 @@ impl<'lt> DataStore<'lt> {
             Err(IndexModuloTooSmall(header.index_modulo, index_len_u32))?;
         }
 
+        drop(shared);
+
         Ok(store)
     }
 
