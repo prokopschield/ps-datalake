@@ -202,8 +202,7 @@ impl<'lt> DataStore<'lt> {
             Err(PsDataLakeError::InitFailedNotEnoughSpace(mapping.len()))?;
         }
 
-        let mut map = mapping.try_write()?;
-        let map_ptr = map.as_mut_ptr();
+        let map_ptr = mapping.try_as_mut_ptr()?;
 
         unsafe { DataStoreIndex::init_at_offset(map_ptr, index_offset, (), index_length).fill(0) };
 
@@ -216,7 +215,7 @@ impl<'lt> DataStore<'lt> {
             );
         }
 
-        let mut guard = DataStoreWriteGuard::from(map);
+        let mut guard = DataStoreWriteGuard::from(mapping.try_write()?);
         let header = guard.get_header()?;
 
         header.magic = MAGIC;
