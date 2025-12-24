@@ -21,6 +21,7 @@ use ps_hkey::MAX_DECRYPTED_SIZE;
 use ps_hkey::MAX_ENCRYPTED_SIZE;
 use ps_hkey::MAX_SIZE_RAW;
 use ps_mbuf::Mbuf;
+use ps_mbuf::MbufValue;
 use ps_mmap::MemoryMap;
 use ps_str::Utf8Encoder;
 use ps_util::Array;
@@ -54,6 +55,8 @@ pub type DataStorePageMbuf<'lt> = Mbuf<'lt, Hash, u8>;
 pub struct DataStorePage<'lt> {
     mbuf: DataStorePageMbuf<'lt>,
 }
+
+impl MbufValue for DataStorePage<'_> {}
 
 impl<'lt> DataStorePage<'lt> {
     #[must_use]
