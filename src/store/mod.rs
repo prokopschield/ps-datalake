@@ -92,27 +92,6 @@ impl<'lt> DataStore<'lt> {
         Ok(self.try_into()?)
     }
 
-    #[must_use]
-    pub unsafe fn get_header(mapping: &MemoryMap) -> &'lt mut DataStoreHeader {
-        &mut *(mapping.as_ptr() as *mut DataStoreHeader)
-    }
-
-    #[must_use]
-    pub unsafe fn get_index(mapping: &MemoryMap) -> &'lt mut DataStoreIndex<'lt> {
-        DataStoreIndex::at_offset_mut(
-            mapping.as_ptr().cast_mut(),
-            Self::get_header(mapping).index_offset as usize,
-        )
-    }
-
-    #[must_use]
-    pub unsafe fn get_pager(mapping: &MemoryMap) -> &'lt mut DataStorePager<'lt> {
-        DataStorePager::at_offset_mut(
-            mapping.as_ptr().cast_mut(),
-            Self::get_header(mapping).data_offset as usize,
-        )
-    }
-
     pub fn load<P>(file_path: P, readonly: bool) -> Result<Self>
     where
         P: AsRef<Path>,
