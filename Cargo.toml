@@ -12,7 +12,7 @@ ps-hash = "0.1.0-24"
 ps-hkey = "0.1.0-32"
 ps-mbuf = "0.1.0-8"
 ps-mmap = "0.1.0-14"
-ps-str = "0.1.0-2"
+ps-str = "0.1.0-3"
 ps-util = "0.1.0-6"
 serde = { version = "1.0.228", features = ["serde_derive"] }
 thiserror = "2.0.17"
