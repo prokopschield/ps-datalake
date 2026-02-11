@@ -7,6 +7,8 @@ pub enum PsDataLakeError {
     AlignmentError(#[from] AlignmentError),
     #[error(transparent)]
     DataStoreCorrupted(#[from] DataStoreCorrupted),
+    #[error("Hkey construction error: {0}")]
+    HkeyConstruction(#[from] ps_hkey::HkeyConstructionError),
     #[error(transparent)]
     IoError(#[from] std::io::Error),
     #[error(transparent)]

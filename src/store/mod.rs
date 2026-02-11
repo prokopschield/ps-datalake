@@ -356,7 +356,7 @@ impl<'lt> DataStore<'lt> {
         ) as *mut u8;
 
         unsafe {
-            DataStorePageMbuf::write_to_ptr(pointer, *opaque_chunk.hash(), opaque_chunk.data_ref())
+            DataStorePageMbuf::write_to_ptr(pointer, opaque_chunk.hash(), opaque_chunk.data_ref())
         };
 
         atomic.get_header()?.free_chunk += u32::try_from(required_chunks)?;
@@ -400,7 +400,7 @@ impl<'lt> DataStore<'lt> {
 
     pub fn put_chunk<C: DataChunk>(&'lt self, chunk: &C) -> Result<Hkey> {
         if chunk.data_ref().len() <= MAX_SIZE_RAW {
-            return Ok(Hkey::from_raw(chunk.data_ref()));
+            return Ok(Hkey::from_raw(chunk.data_ref())?);
         }
 
         if chunk.data_ref().len() > MAX_DECRYPTED_SIZE {
@@ -429,7 +429,7 @@ impl<'lt> DataStore<'lt> {
 
     pub fn put_blob(&'lt self, blob: &[u8]) -> Result<Hkey> {
         if blob.len() <= MAX_SIZE_RAW {
-            Ok(Hkey::from_raw(blob))
+            Ok(Hkey::from_raw(blob)?)
         } else if blob.len() > MAX_DECRYPTED_SIZE {
             self.put_large_blob(blob)
         } else {

@@ -7,16 +7,16 @@ license = "GPL-3.0-or-later"
 
 [dependencies]
 parking_lot = "0.12.5"
-ps-datachunk = "0.1.0-34"
+ps-datachunk = "0.1.0-35"
 ps-hash = "0.1.0-24"
-ps-hkey = "0.1.0-32"
+ps-hkey = "0.1.0-33"
 ps-mbuf = "0.1.0-8"
 ps-mmap = "0.1.0-14"
 ps-str = "0.1.0-3"
 ps-util = "0.1.0-6"
 serde = { version = "1.0.228", features = ["serde_derive"] }
-thiserror = "2.0.17"
-toml = "0.9.10"
+thiserror = "2.0.18"
+toml = "0.9.12"
 
 [profile.dev]
 opt-level = 3
