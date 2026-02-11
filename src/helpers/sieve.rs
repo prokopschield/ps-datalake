@@ -30,7 +30,7 @@ pub fn get_le_prime(limit: u32) -> u32 {
 
     let mut r = limit;
 
-    if r % 2 == 0 {
+    if r.is_multiple_of(2) {
         r -= 1;
     }
 
