@@ -18,9 +18,9 @@ pub enum PsDataLakeError {
     #[error(transparent)]
     Offset(#[from] OffsetError),
     #[error(transparent)]
-    PsDataChunkError(#[from] ps_datachunk::PsDataChunkError),
+    PsDataChunkError(#[from] ps_datachunk::DataChunkError),
     #[error(transparent)]
-    PsHkeyError(#[from] ps_hkey::PsHkeyError),
+    PsHkeyError(#[from] ps_hkey::HkeyError),
     #[error(transparent)]
     TomlSerError(#[from] Box<toml::ser::Error>),
     #[error(transparent)]
