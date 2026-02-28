@@ -2,33 +2,33 @@ use std::{fmt::Display, num::TryFromIntError, sync::PoisonError};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
-pub enum PsDataLakeError {
+pub enum DataLakeError {
     #[error(transparent)]
-    AlignmentError(#[from] AlignmentError),
+    Alignment(#[from] AlignmentError),
     #[error(transparent)]
     DataStoreCorrupted(#[from] DataStoreCorrupted),
     #[error("Hkey construction error: {0}")]
     HkeyConstruction(#[from] ps_hkey::HkeyConstructionError),
     #[error(transparent)]
-    IoError(#[from] std::io::Error),
+    Io(#[from] std::io::Error),
     #[error(transparent)]
-    MmapMapError(#[from] ps_mmap::MapError),
+    MmapMap(#[from] ps_mmap::MapError),
     #[error("Tried to get a RW-handle on a read-only store.")]
     MmapReadOnly,
     #[error(transparent)]
     Offset(#[from] OffsetError),
     #[error(transparent)]
-    PsDataChunkError(#[from] ps_datachunk::DataChunkError),
+    DataChunk(#[from] ps_datachunk::DataChunkError),
     #[error(transparent)]
-    PsHkeyError(#[from] ps_hkey::HkeyError),
+    Hkey(#[from] ps_hkey::HkeyError),
     #[error(transparent)]
-    TomlSerError(#[from] Box<toml::ser::Error>),
+    TomlSer(#[from] Box<toml::ser::Error>),
     #[error(transparent)]
-    TomlDeError(#[from] Box<toml::de::Error>),
+    TomlDeser(#[from] Box<toml::de::Error>),
     #[error("Integer conversion error")]
     TryFromInt(#[from] TryFromIntError),
     #[error("Index out of range")]
-    RangeError,
+    Range,
     #[error("DataChunk not found")]
     NotFound,
     #[error("Index overflowed - too many index buckets")]
@@ -40,16 +40,16 @@ pub enum PsDataLakeError {
     #[error("DataLake is out of available stores!")]
     DataLakeOutOfStores,
     #[error("Failed to acquire a poisoned mutex")]
-    MutexPoisonError,
+    MutexPoison,
     #[error("Failed to store data")]
     StorageFailure,
     #[error("Invalid input format")]
-    FormatError,
+    Format,
     #[error("To initialize a DataStore, please provision at least 64 kB of space.")]
     InitFailedNotEnoughSpace(usize),
 }
 
-pub type Result<T> = std::result::Result<T, PsDataLakeError>;
+pub type Result<T> = std::result::Result<T, DataLakeError>;
 
 #[derive(Error, Debug)]
 pub struct AlignmentError;
@@ -68,13 +68,13 @@ pub enum OffsetError {
     TryFromInt(#[from] TryFromIntError),
 }
 
-impl<T> From<PoisonError<T>> for PsDataLakeError {
+impl<T> From<PoisonError<T>> for DataLakeError {
     fn from(_: PoisonError<T>) -> Self {
-        Self::MutexPoisonError
+        Self::MutexPoison
     }
 }
 
-impl From<ps_mmap::DerefError> for PsDataLakeError {
+impl From<ps_mmap::DerefError> for DataLakeError {
     fn from(value: ps_mmap::DerefError) -> Self {
         match value {
             ps_mmap::DerefError::ReadOnly => Self::MmapReadOnly,
@@ -82,15 +82,15 @@ impl From<ps_mmap::DerefError> for PsDataLakeError {
     }
 }
 
-impl From<toml::ser::Error> for PsDataLakeError {
+impl From<toml::ser::Error> for DataLakeError {
     fn from(value: toml::ser::Error) -> Self {
-        Self::TomlSerError(Box::from(value))
+        Self::TomlSer(Box::from(value))
     }
 }
 
-impl From<toml::de::Error> for PsDataLakeError {
+impl From<toml::de::Error> for DataLakeError {
     fn from(value: toml::de::Error) -> Self {
-        Self::TomlDeError(Box::from(value))
+        Self::TomlDeser(Box::from(value))
     }
 }
 

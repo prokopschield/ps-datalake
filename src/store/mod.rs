@@ -4,8 +4,8 @@ mod shared;
 use std::marker::PhantomData;
 use std::path::Path;
 
+use crate::error::DataLakeError;
 use crate::error::DataStoreCorrupted;
-use crate::error::PsDataLakeError;
 use crate::error::Result;
 use crate::helpers::sieve;
 use atomic::DataStoreWriteGuard;
@@ -199,7 +199,7 @@ impl<'lt> DataStore<'lt> {
         let index_modulo = sieve::get_le_prime(u32::try_from(index_modulo_max)?);
 
         if (data_offset + std::mem::size_of::<DataStorePager>()) > mapping.len() {
-            Err(PsDataLakeError::InitFailedNotEnoughSpace(mapping.len()))?;
+            Err(DataLakeError::InitFailedNotEnoughSpace(mapping.len()))?;
         }
 
         let map_ptr = mapping.try_as_mut_ptr()?;
@@ -241,9 +241,7 @@ impl<'lt> DataStore<'lt> {
         self.shared()
             .get_pager()?
             .get(index)
-            .map_or(Err(PsDataLakeError::RangeError), |page| {
-                Ok(page.mbuf().into())
-            })
+            .map_or(Err(DataLakeError::Range), |page| Ok(page.mbuf().into()))
     }
 
     #[must_use]
@@ -265,7 +263,7 @@ impl<'lt> DataStore<'lt> {
         for bucket in bucket..u32::try_from(index.len())? {
             let index = index
                 .get(bucket as usize)
-                .ok_or(PsDataLakeError::IndexBucketOverflow)?;
+                .ok_or(DataLakeError::IndexBucketOverflow)?;
 
             if *index == 0 {
                 return Ok((bucket, 0, None));
@@ -278,7 +276,7 @@ impl<'lt> DataStore<'lt> {
             }
         }
 
-        Err(PsDataLakeError::IndexBucketOverflow)
+        Err(DataLakeError::IndexBucketOverflow)
     }
 
     pub fn get_bucket_by_hash(&'lt self, hash: &Hash) -> Result<u32> {
@@ -290,7 +288,7 @@ impl<'lt> DataStore<'lt> {
     pub fn get_index_by_hash(&'lt self, hash: &Hash) -> Result<u32> {
         let (_, index, chunk) = self.get_bucket_index_chunk_by_hash(hash)?;
 
-        chunk.ok_or(PsDataLakeError::NotFound)?;
+        chunk.ok_or(DataLakeError::NotFound)?;
 
         Ok(index)
     }
@@ -298,7 +296,7 @@ impl<'lt> DataStore<'lt> {
     pub fn get_chunk_by_hash(&'lt self, hash: &Hash) -> Result<MbufDataChunk<'lt>> {
         let (_, _, chunk) = self.get_bucket_index_chunk_by_hash(hash)?;
 
-        chunk.ok_or(PsDataLakeError::NotFound)
+        chunk.ok_or(DataLakeError::NotFound)
     }
 
     /// Stores opaque data and returns a tuple containing the bucket, index, and [`DataChunk`].
@@ -328,7 +326,7 @@ impl<'lt> DataStore<'lt> {
         }
 
         if self.readonly {
-            Err(PsDataLakeError::DataStoreNotRw)?;
+            Err(DataLakeError::DataStoreNotRw)?;
         }
 
         let mut atomic = self.atomic()?;
@@ -341,17 +339,17 @@ impl<'lt> DataStore<'lt> {
             .get_pager()?
             .len()
             .checked_sub(next_free_chunk)
-            .ok_or(PsDataLakeError::DataStoreOutOfSpace)?;
+            .ok_or(DataLakeError::DataStoreOutOfSpace)?;
 
         if available_chunks < required_chunks {
-            Err(PsDataLakeError::DataStoreOutOfSpace)?;
+            Err(DataLakeError::DataStoreOutOfSpace)?;
         }
 
         let pointer = std::ptr::from_ref(
             atomic
                 .get_pager()?
                 .get(next_free_chunk)
-                .ok_or(PsDataLakeError::RangeError)?
+                .ok_or(DataLakeError::Range)?
                 .mbuf(),
         ) as *mut u8;
 
@@ -387,7 +385,7 @@ impl<'lt> DataStore<'lt> {
             let chunk = self.put_opaque_chunk(&encrypted)?.2;
 
             if chunk.hash_ref() != encrypted.hash_ref() {
-                Err(PsDataLakeError::StorageFailure)?;
+                Err(DataLakeError::StorageFailure)?;
             }
 
             Ok((encrypted.hash(), encrypted.key()).into())
@@ -412,7 +410,7 @@ impl<'lt> DataStore<'lt> {
         let stored_chunk = self.put_opaque_chunk(&encrypted)?.2;
 
         if stored_chunk.hash_ref() != encrypted.hash_ref() {
-            Err(PsDataLakeError::StorageFailure)?;
+            Err(DataLakeError::StorageFailure)?;
         }
 
         Ok(Hkey::Encrypted(encrypted.hash(), encrypted.key()))
@@ -443,7 +441,7 @@ impl<'lt> Store for DataStore<'lt> {
         = MbufDataChunk<'c>
     where
         'lt: 'c;
-    type Error = PsDataLakeError;
+    type Error = DataLakeError;
 
     fn get<'a>(&'a self, hash: &Hash) -> std::result::Result<Self::Chunk<'a>, Self::Error> {
         self.get_chunk_by_hash(hash)

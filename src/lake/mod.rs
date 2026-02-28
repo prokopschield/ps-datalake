@@ -1,6 +1,6 @@
 pub mod config;
 pub mod util;
-use crate::error::PsDataLakeError;
+use crate::error::DataLakeError;
 use crate::error::Result;
 use crate::store::DataStore;
 use config::DataLakeConfig;
@@ -52,13 +52,13 @@ impl<'lt> DataLake<'lt> {
     }
 
     pub fn get_encrypted_chunk(&'lt self, hash: &Hash) -> Result<MbufDataChunk<'lt>> {
-        let mut error = PsDataLakeError::NotFound;
+        let mut error = DataLakeError::NotFound;
 
         for store in &self.stores.readable {
             match store.get_chunk_by_hash(hash) {
                 Ok(chunk) => return Ok(chunk),
                 Err(err) => match err {
-                    PsDataLakeError::NotFound => (),
+                    DataLakeError::NotFound => (),
                     _ => error = err,
                 },
             }
@@ -68,7 +68,7 @@ impl<'lt> DataLake<'lt> {
     }
 
     pub fn put_encrypted_chunk<C: DataChunk>(&'lt self, chunk: &C) -> Result<Hkey> {
-        use PsDataLakeError::{DataStoreNotRw, DataStoreOutOfSpace};
+        use DataLakeError::{DataStoreNotRw, DataStoreOutOfSpace};
 
         for store in &self.stores.writable {
             match store.put_encrypted_chunk(chunk) {
@@ -80,7 +80,7 @@ impl<'lt> DataLake<'lt> {
             }
         }
 
-        Err(PsDataLakeError::DataLakeOutOfStores)
+        Err(DataLakeError::DataLakeOutOfStores)
     }
 
     pub fn put_chunk<C: DataChunk>(&'lt self, chunk: &C) -> Result<Hkey> {
@@ -88,13 +88,13 @@ impl<'lt> DataLake<'lt> {
             match store.put_chunk(chunk) {
                 Ok(chunk) => return Ok(chunk),
                 Err(err) => match err {
-                    PsDataLakeError::DataStoreOutOfSpace | PsDataLakeError::DataStoreNotRw => (),
+                    DataLakeError::DataStoreOutOfSpace | DataLakeError::DataStoreNotRw => (),
                     _ => Err(err)?,
                 },
             }
         }
 
-        Err(PsDataLakeError::DataLakeOutOfStores)
+        Err(DataLakeError::DataLakeOutOfStores)
     }
 
     pub fn put_blob(&'lt self, blob: &[u8]) -> Result<Hkey> {
@@ -102,13 +102,13 @@ impl<'lt> DataLake<'lt> {
             match store.put_blob(blob) {
                 Ok(chunk) => return Ok(chunk),
                 Err(err) => match err {
-                    PsDataLakeError::DataStoreOutOfSpace | PsDataLakeError::DataStoreNotRw => (),
+                    DataLakeError::DataStoreOutOfSpace | DataLakeError::DataStoreNotRw => (),
                     _ => Err(err)?,
                 },
             }
         }
 
-        Err(PsDataLakeError::DataLakeOutOfStores)
+        Err(DataLakeError::DataLakeOutOfStores)
     }
 }
 
@@ -117,7 +117,7 @@ impl<'lt> Store for DataLake<'lt> {
         = MbufDataChunk<'c>
     where
         'lt: 'c;
-    type Error = PsDataLakeError;
+    type Error = DataLakeError;
 
     fn get<'a>(&'a self, hash: &Hash) -> std::result::Result<Self::Chunk<'a>, Self::Error> {
         self.get_encrypted_chunk(hash)
