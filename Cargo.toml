@@ -17,6 +17,13 @@ serde = { version = "1.0.228", features = ["serde_derive"] }
 thiserror = "2.0.18"
 toml = "1.0.3"
 
+[lints.clippy]
+expect_used = "warn"
+nursery = { level = "warn", priority = -1 }
+panic = "forbid"
+pedantic = { level = "warn", priority = -1 }
+unwrap_used = "forbid"
+
 [profile.dev]
 opt-level = 3
 
