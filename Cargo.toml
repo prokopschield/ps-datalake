@@ -15,7 +15,7 @@ ps-str = "0.1.0-3"
 ps-util = "0.1.0-6"
 serde = { version = "1.0.228", features = ["serde_derive"] }
 thiserror = "2.0.18"
-toml = "1.0.3"
+toml = "1.0.6"
 
 [lints.clippy]
 expect_used = "warn"
