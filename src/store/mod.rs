@@ -9,7 +9,6 @@ use crate::error::DataStoreCorrupted;
 use crate::error::Result;
 use crate::helpers::sieve;
 use atomic::DataStoreWriteGuard;
-use ps_datachunk::utils::round_up;
 use ps_datachunk::BorrowedDataChunk;
 use ps_datachunk::DataChunk;
 use ps_datachunk::MbufDataChunk;
@@ -177,7 +176,7 @@ impl<'lt> DataStore<'lt> {
         let ihead = std::mem::size_of::<DataStoreIndex>();
         let phead = std::mem::size_of::<DataStorePager>();
         let base_items = 1 + (total_len >> 10);
-        let rup_items = round_up(base_items, 10);
+        let rup_items = base_items.next_multiple_of(1 << 10);
         let sub_bytes = offset + ihead + phead;
         let sub_items = sub_bytes / std::mem::size_of::<u32>();
         let index_length = rup_items - sub_items;
