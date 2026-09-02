@@ -6,9 +6,9 @@ description = "Encrypted flat storage"
 license = "GPL-3.0-or-later"
 
 [dependencies]
-ps-datachunk = "0.1.0-37"
+ps-datachunk = "0.1.0-38"
 ps-hash = "0.1.0-27"
-ps-hkey = "0.1.0-37"
+ps-hkey = "0.1.0-39"
 ps-mbuf = "0.1.0-8"
 ps-mmap = "0.1.0-15"
 ps-str = "0.1.0-5"

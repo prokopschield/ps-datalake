@@ -450,8 +450,8 @@ impl<'lt> Store for DataStore<'lt> {
         self.put_blob(data)
     }
 
-    fn put_encrypted<C: DataChunk>(&self, chunk: C) -> std::result::Result<(), Self::Error> {
-        self.put_encrypted_chunk(&chunk)?;
+    fn put_verbatim<C: DataChunk>(&self, chunk: C) -> std::result::Result<(), Self::Error> {
+        self.put_opaque_chunk(&chunk)?;
         Ok(())
     }
 }

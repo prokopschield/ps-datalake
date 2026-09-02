@@ -97,6 +97,21 @@ impl<'lt> DataLake<'lt> {
         Err(DataLakeError::DataLakeOutOfStores)
     }
 
+    /// Stores `chunk` verbatim, under its own hash, in the first writable store with room for it.
+    pub fn put_opaque_chunk<C: DataChunk>(&self, chunk: &C) -> Result<()> {
+        for store in &self.stores.writable {
+            match store.put_opaque_chunk(chunk) {
+                Ok(_) => return Ok(()),
+                Err(err) => match err {
+                    DataLakeError::DataStoreOutOfSpace | DataLakeError::DataStoreNotRw => (),
+                    _ => Err(err)?,
+                },
+            }
+        }
+
+        Err(DataLakeError::DataLakeOutOfStores)
+    }
+
     pub fn put_blob(&'lt self, blob: &[u8]) -> Result<Hkey> {
         for store in &self.stores.writable {
             match store.put_blob(blob) {
@@ -127,8 +142,7 @@ impl<'lt> Store for DataLake<'lt> {
         self.put_blob(data)
     }
 
-    fn put_encrypted<C: DataChunk>(&self, chunk: C) -> std::result::Result<(), Self::Error> {
-        self.put_encrypted_chunk(&chunk)?;
-        Ok(())
+    fn put_verbatim<C: DataChunk>(&self, chunk: C) -> std::result::Result<(), Self::Error> {
+        self.put_opaque_chunk(&chunk)
     }
 }
