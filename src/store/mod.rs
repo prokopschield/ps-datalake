@@ -17,7 +17,6 @@ use ps_hkey::Hkey;
 use ps_hkey::LongHkeyExpanded;
 use ps_hkey::Store;
 use ps_hkey::MAX_DECRYPTED_SIZE;
-use ps_hkey::MAX_ENCRYPTED_SIZE;
 use ps_hkey::MAX_SIZE_RAW;
 use ps_mbuf::Mbuf;
 use ps_mbuf::MbufValue;
@@ -367,28 +366,6 @@ impl<'lt> DataStore<'lt> {
             next_free_chunk_u32,
             self.get_chunk_by_index(next_free_chunk)?,
         ))
-    }
-
-    pub fn put_encrypted_chunk<C: DataChunk>(&'lt self, chunk: &C) -> Result<Hkey> {
-        let length = chunk.data_ref().len();
-
-        if length <= MAX_SIZE_RAW || length > MAX_ENCRYPTED_SIZE {
-            return self.put_chunk(chunk);
-        }
-
-        let encrypted = chunk.encrypt()?;
-
-        if encrypted.data_ref().len() > length {
-            Ok(self.put_opaque_chunk(chunk)?.2.hash().into())
-        } else {
-            let chunk = self.put_opaque_chunk(&encrypted)?.2;
-
-            if chunk.hash_ref() != encrypted.hash_ref() {
-                Err(DataLakeError::StorageFailure)?;
-            }
-
-            Ok((encrypted.hash(), encrypted.key()).into())
-        }
     }
 
     pub fn put_large_chunk<C: DataChunk>(&'lt self, chunk: &C) -> Result<Hkey> {

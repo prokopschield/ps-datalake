@@ -67,22 +67,6 @@ impl<'lt> DataLake<'lt> {
         Err(error)
     }
 
-    pub fn put_encrypted_chunk<C: DataChunk>(&'lt self, chunk: &C) -> Result<Hkey> {
-        use DataLakeError::{DataStoreNotRw, DataStoreOutOfSpace};
-
-        for store in &self.stores.writable {
-            match store.put_encrypted_chunk(chunk) {
-                Ok(chunk) => return Ok(chunk),
-                Err(err) => match err {
-                    DataStoreOutOfSpace | DataStoreNotRw => (),
-                    err => Err(err)?,
-                },
-            }
-        }
-
-        Err(DataLakeError::DataLakeOutOfStores)
-    }
-
     pub fn put_chunk<C: DataChunk>(&'lt self, chunk: &C) -> Result<Hkey> {
         for store in &self.stores.writable {
             match store.put_chunk(chunk) {
