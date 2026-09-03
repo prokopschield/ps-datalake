@@ -56,7 +56,7 @@ fn open_lake(name: &str) -> Result<(StoreFile, DataLake<'static>), Box<dyn Error
             readonly: false,
         }],
     };
-    let lake = DataLake::init(config)?;
+    let lake = DataLake::init(&config)?;
 
     Ok((file, lake))
 }

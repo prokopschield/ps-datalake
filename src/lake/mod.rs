@@ -19,12 +19,11 @@ pub struct DataLakeStores<'lt> {
 
 #[derive(Clone, Debug, Default)]
 pub struct DataLake<'lt> {
-    pub config: DataLakeConfig,
     pub stores: DataLakeStores<'lt>,
 }
 
 impl<'lt> DataLake<'lt> {
-    pub fn init(config: DataLakeConfig) -> Result<Self> {
+    pub fn init(config: &DataLakeConfig) -> Result<Self> {
         let mut stores = DataLakeStores::default();
 
         for entry in &config.stores {
@@ -46,7 +45,7 @@ impl<'lt> DataLake<'lt> {
             stores.writable.push(store);
         }
 
-        let lake = Self { config, stores };
+        let lake = Self { stores };
 
         Ok(lake)
     }
