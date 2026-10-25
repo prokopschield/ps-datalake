@@ -45,6 +45,12 @@ pub enum DataLakeError {
     Format,
     #[error("To initialize a DataStore, please provision at least 64 kB of space.")]
     InitFailedNotEnoughSpace(usize),
+    #[cfg(feature = "async")]
+    #[error("Promise was already consumed")]
+    PromiseConsumedAlready,
+    #[cfg(feature = "async")]
+    #[error(transparent)]
+    TaskFailed(ps_promise::TaskFailure),
 }
 
 pub type Result<T> = std::result::Result<T, DataLakeError>;
