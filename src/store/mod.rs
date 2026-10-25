@@ -20,7 +20,7 @@ use ps_hkey::MAX_DECRYPTED_SIZE;
 use ps_hkey::MAX_SIZE_RAW;
 use ps_mbuf::Mbuf;
 use ps_mbuf::MbufValue;
-use ps_mmap::MemoryMap;
+use ps_mmap::MemoryMapping;
 use ps_str::Utf8Encoder;
 use ps_util::Array;
 use shared::DataStoreReadGuard;
@@ -72,21 +72,21 @@ pub type DataStorePager<'lt> = Mbuf<'lt, (), DataStorePage<'lt>>;
 
 #[derive(Clone, Debug)]
 pub struct DataStore<'lt> {
-    mmap: MemoryMap,
+    mmap: MemoryMapping,
     readonly: bool,
     _data: PhantomData<&'lt [u8]>,
 }
 
 impl<'lt> DataStore<'lt> {
-    pub fn load_mapping<P>(file_path: P, readonly: bool) -> Result<MemoryMap>
+    pub fn load_mapping<P>(file_path: P, readonly: bool) -> Result<MemoryMapping>
     where
         P: AsRef<Path>,
     {
-        Ok(MemoryMap::map(file_path, readonly)?)
+        Ok(MemoryMapping::map(file_path, readonly)?)
     }
 
-    fn shared(&self) -> DataStoreReadGuard<'lt> {
-        self.into()
+    fn shared(&self) -> Result<DataStoreReadGuard<'lt>> {
+        Ok(self.try_into()?)
     }
 
     fn atomic(&self) -> Result<DataStoreWriteGuard> {
@@ -102,7 +102,7 @@ impl<'lt> DataStore<'lt> {
         Self::load_with_mmap(mmap, readonly)
     }
 
-    fn load_with_mmap(mmap: MemoryMap, readonly: bool) -> Result<Self> {
+    fn load_with_mmap(mmap: MemoryMapping, readonly: bool) -> Result<Self> {
         use DataStoreCorrupted::{
             DataEndsOutOfBounds, DataOffsetOutOfBounds, IndexDataOverlap, IndexEndsOutOfBounds,
             IndexModuloTooSmall, IndexOffsetOutOfBounds, InvalidDataStoreSize, InvalidMagic,
@@ -120,7 +120,7 @@ impl<'lt> DataStore<'lt> {
             _data: PhantomData,
         };
 
-        let shared = store.shared();
+        let shared = store.shared()?;
         let header = shared.get_header()?;
 
         if header.magic != MAGIC {
@@ -138,7 +138,7 @@ impl<'lt> DataStore<'lt> {
         let index = shared.get_index()?;
         let pager = shared.get_pager()?;
 
-        let base_ptr = store.mmap.as_ptr();
+        let base_ptr = shared.as_ptr();
 
         let index_end_offset = index.as_ptr_range().end as usize - base_ptr as usize;
         if index_end_offset > size {
@@ -200,7 +200,8 @@ impl<'lt> DataStore<'lt> {
             Err(DataLakeError::InitFailedNotEnoughSpace(mapping.len()))?;
         }
 
-        let map_ptr = mapping.try_as_mut_ptr()?;
+        let mut write_guard = mapping.write()?;
+        let map_ptr = write_guard.as_mut_ptr();
 
         unsafe { DataStoreIndex::init_at_offset(map_ptr, index_offset, (), index_length).fill(0) };
 
@@ -213,7 +214,7 @@ impl<'lt> DataStore<'lt> {
             );
         }
 
-        let mut guard = DataStoreWriteGuard::from(mapping.try_write()?);
+        let mut guard = DataStoreWriteGuard::from(write_guard);
         let header = guard.get_header()?;
 
         header.magic = MAGIC;
@@ -236,7 +237,7 @@ impl<'lt> DataStore<'lt> {
     }
 
     pub fn get_chunk_by_index(&self, index: usize) -> Result<MbufDataChunk<'_>> {
-        self.shared()
+        self.shared()?
             .get_pager()?
             .get(index)
             .map_or(Err(DataLakeError::Range), |page| Ok(page.mbuf().into()))
@@ -251,7 +252,7 @@ impl<'lt> DataStore<'lt> {
         &self,
         hash: &Hash,
     ) -> Result<(u32, u32, Option<MbufDataChunk<'_>>)> {
-        let shared = self.shared();
+        let shared = self.shared()?;
         let header = shared.get_header()?;
         let index = shared.get_index()?;
         let bucket = Self::calculate_index_bucket(hash, header.index_modulo);

@@ -12,9 +12,7 @@ pub enum DataLakeError {
     #[error(transparent)]
     Io(#[from] std::io::Error),
     #[error(transparent)]
-    MmapMap(#[from] ps_mmap::MapError),
-    #[error("Tried to get a RW-handle on a read-only store.")]
-    MmapReadOnly,
+    Mmap(#[from] ps_mmap::MemoryMappingError),
     #[error(transparent)]
     Offset(#[from] OffsetError),
     #[error(transparent)]
@@ -71,14 +69,6 @@ pub enum OffsetError {
 impl<T> From<PoisonError<T>> for DataLakeError {
     fn from(_: PoisonError<T>) -> Self {
         Self::MutexPoison
-    }
-}
-
-impl From<ps_mmap::DerefError> for DataLakeError {
-    fn from(value: ps_mmap::DerefError) -> Self {
-        match value {
-            ps_mmap::DerefError::ReadOnly => Self::MmapReadOnly,
-        }
     }
 }
 

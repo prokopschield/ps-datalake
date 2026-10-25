@@ -1,4 +1,4 @@
-use ps_mmap::{DerefError, WriteGuard};
+use ps_mmap::{MemoryMappingError, MemoryMappingWriteGuard};
 
 use crate::error::{AlignmentError, OffsetError};
 
@@ -6,7 +6,7 @@ use super::{DataStore, DataStoreHeader, DataStoreIndex, DataStorePager};
 
 #[derive(Debug)]
 pub struct DataStoreWriteGuard {
-    inner: WriteGuard,
+    inner: MemoryMappingWriteGuard,
 }
 
 impl DataStoreWriteGuard {
@@ -42,16 +42,16 @@ impl DataStoreWriteGuard {
     }
 }
 
-impl From<WriteGuard> for DataStoreWriteGuard {
-    fn from(inner: WriteGuard) -> Self {
+impl From<MemoryMappingWriteGuard> for DataStoreWriteGuard {
+    fn from(inner: MemoryMappingWriteGuard) -> Self {
         Self { inner }
     }
 }
 
 impl TryFrom<&DataStore<'_>> for DataStoreWriteGuard {
-    type Error = DerefError;
+    type Error = MemoryMappingError;
 
     fn try_from(value: &DataStore) -> Result<Self, Self::Error> {
-        Ok(value.mmap.try_write()?.into())
+        Ok(value.mmap.write()?.into())
     }
 }

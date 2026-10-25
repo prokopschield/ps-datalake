@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use ps_mmap::ReadGuard;
+use ps_mmap::{MemoryMappingError, MemoryMappingReadGuard};
 
 use crate::error::{AlignmentError, OffsetError};
 
@@ -8,11 +8,17 @@ use super::{DataStore, DataStoreHeader, DataStoreIndex, DataStorePager};
 
 #[derive(Debug)]
 pub struct DataStoreReadGuard<'lt> {
-    inner: ReadGuard,
+    inner: MemoryMappingReadGuard,
     _data: PhantomData<&'lt [u8]>,
 }
 
 impl<'lt> DataStoreReadGuard<'lt> {
+    #[inline]
+    #[must_use]
+    pub fn as_ptr(&self) -> *const u8 {
+        self.inner.as_ptr()
+    }
+
     #[inline]
     pub fn get_header(&self) -> Result<&'lt DataStoreHeader, AlignmentError> {
         let ptr: *const DataStoreHeader = self.inner.as_ptr().cast();
@@ -45,11 +51,13 @@ impl<'lt> DataStoreReadGuard<'lt> {
     }
 }
 
-impl<'lt> From<&DataStore<'lt>> for DataStoreReadGuard<'lt> {
-    fn from(value: &DataStore) -> Self {
-        Self {
-            inner: value.mmap.read(),
+impl<'lt> TryFrom<&DataStore<'lt>> for DataStoreReadGuard<'lt> {
+    type Error = MemoryMappingError;
+
+    fn try_from(value: &DataStore) -> Result<Self, Self::Error> {
+        Ok(Self {
+            inner: value.mmap.read()?,
             _data: PhantomData,
-        }
+        })
     }
 }
