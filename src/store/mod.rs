@@ -28,6 +28,12 @@ use shared::DataStoreReadGuard;
 pub const MAGIC: [u8; 16] = *b"DataLake\0\0\0\0\0\0\0\0";
 pub const PTR_SIZE: usize = 4;
 pub const CHUNK_SIZE: usize = std::mem::size_of::<DataStorePage>();
+pub const STORE_BOUNDARY_SIZE: usize = 1usize << 40;
+
+/// The smallest segment that yields a store with any data capacity: 4096 bytes
+/// of header, index, and pager metadata, one page reserved for chunk #0, and
+/// one page of data.
+pub const MIN_USEFUL_STORE_SIZE: usize = 4096 + 2 * CHUNK_SIZE;
 
 #[repr(C)]
 pub struct DataStoreHeader {
@@ -102,6 +108,36 @@ impl<'lt> DataStore<'lt> {
         Self::load_with_mmap(mmap, readonly)
     }
 
+    pub fn load_all<P>(file_path: P, readonly: bool) -> Result<Vec<Self>>
+    where
+        P: AsRef<Path>,
+    {
+        let mmap = Self::load_mapping(file_path, readonly)?;
+        let boundaries = Self::derive_store_boundaries(mmap.len());
+
+        if boundaries.len() <= 1 {
+            return Ok(vec![Self::load_with_mmap(mmap, readonly)?]);
+        }
+
+        let mappings = Self::split_mapping(mmap, &boundaries)?;
+
+        let mut stores = vec![];
+
+        for store_mmap in mappings {
+            match Self::load_with_mmap(store_mmap, readonly) {
+                Ok(store) => stores.push(store),
+                Err(DataLakeError::DataStoreCorrupted(DataStoreCorrupted::InvalidMagic(_)))
+                    if !stores.is_empty() =>
+                {
+                    break;
+                }
+                Err(err) => Err(err)?,
+            }
+        }
+
+        Ok(stores)
+    }
+
     fn load_with_mmap(mmap: MemoryMapping, readonly: bool) -> Result<Self> {
         use DataStoreCorrupted::{
             DataEndsOutOfBounds, DataOffsetOutOfBounds, IndexDataOverlap, IndexEndsOutOfBounds,
@@ -151,7 +187,7 @@ impl<'lt> DataStore<'lt> {
         }
 
         let data_ptr = std::ptr::addr_of!(*pager.get_metadata());
-        let data_start_offset = data_ptr as usize;
+        let data_start_offset = data_ptr as usize - base_ptr as usize;
         if index_end_offset > data_start_offset {
             Err(IndexDataOverlap(index_end_offset, data_start_offset))?;
         }
@@ -184,20 +220,54 @@ impl<'lt> DataStore<'lt> {
         (offset, index_length, data_offset)
     }
 
-    pub fn init<P>(file_path: &P) -> Result<Self>
-    where
-        P: AsRef<Path>,
-    {
-        let readonly = false;
-        let mapping = Self::load_mapping(file_path, readonly)?;
+    fn derive_store_boundaries(total_len: usize) -> Vec<(usize, usize)> {
+        let mut stores = vec![];
+        let mut offset = 0;
 
+        while offset < total_len {
+            let store_len = (total_len - offset).min(STORE_BOUNDARY_SIZE);
+
+            if store_len < MIN_USEFUL_STORE_SIZE {
+                break;
+            }
+
+            stores.push((offset, store_len));
+            offset += STORE_BOUNDARY_SIZE;
+        }
+
+        stores
+    }
+
+    /// Splits `mapping` into consecutive parts of the lengths given by `boundaries`.
+    ///
+    /// Parts are peeled off the remainder sequentially: splitting a writable mapping
+    /// locks it until both halves are dropped, so splitting the original mapping once
+    /// per boundary would fail with `Locked` errors.
+    fn split_mapping(
+        mapping: MemoryMapping,
+        boundaries: &[(usize, usize)],
+    ) -> Result<Vec<MemoryMapping>> {
+        let mut parts = Vec::with_capacity(boundaries.len());
+        let mut rest = mapping;
+
+        for &(_, store_len) in boundaries {
+            let (part, tail) = rest.split_at(store_len)?;
+
+            parts.push(part);
+            rest = tail;
+        }
+
+        Ok(parts)
+    }
+
+    fn init_with_mmap(mapping: MemoryMapping, readonly: bool) -> Result<Self> {
         let total_length = mapping.len();
         let (index_offset, index_length, data_offset) = Self::derive_index_bounds(total_length);
         let index_modulo_max = index_length * 99 / 100;
         let index_modulo = sieve::get_le_prime(u32::try_from(index_modulo_max)?);
 
-        if (data_offset + std::mem::size_of::<DataStorePager>()) > mapping.len() {
-            Err(DataLakeError::InitFailedNotEnoughSpace(mapping.len()))?;
+        if (data_offset + std::mem::size_of::<DataStorePager>()) > total_length {
+            Err(DataLakeError::InitFailedNotEnoughSpace(total_length))?;
         }
 
         let mut write_guard = mapping.write()?;
@@ -225,7 +295,7 @@ impl<'lt> DataStore<'lt> {
 
         drop(guard);
 
-        let store = Self::load_with_mmap(mapping, false)?;
+        let store = Self::load_with_mmap(mapping, readonly)?;
 
         store.put_opaque_chunk(&BorrowedDataChunk::from_data(
             b"<< DATA SEGMENT BEGINS HERE >>",
@@ -234,6 +304,24 @@ impl<'lt> DataStore<'lt> {
         )?)?;
 
         Ok(store)
+    }
+
+    pub fn init<P>(file_path: &P) -> Result<Vec<Self>>
+    where
+        P: AsRef<Path>,
+    {
+        let readonly = false;
+        let mapping = Self::load_mapping(file_path, readonly)?;
+        let boundaries = Self::derive_store_boundaries(mapping.len());
+
+        if boundaries.len() <= 1 {
+            return Ok(vec![Self::init_with_mmap(mapping, readonly)?]);
+        }
+
+        Self::split_mapping(mapping, &boundaries)?
+            .into_iter()
+            .map(|store_mapping| Self::init_with_mmap(store_mapping, readonly))
+            .collect()
     }
 
     pub fn get_chunk_by_index(&self, index: usize) -> Result<MbufDataChunk<'_>> {

@@ -30,21 +30,24 @@ impl<'lt> DataLake<'lt> {
 
         for entry in &config.stores {
             if entry.readonly {
-                let store = DataStore::load(&entry.filename, true)?;
+                let loaded_ro_stores = DataStore::load_all(&entry.filename, true)?;
 
-                readable.push(store);
+                readable.extend(loaded_ro_stores);
 
                 continue;
             }
 
-            let store = if verify_magic(&entry.filename)? {
-                DataStore::load(&entry.filename, false)
-            } else {
-                DataStore::init(&entry.filename)
-            }?;
+            if verify_magic(&entry.filename)? {
+                let loaded_stores = DataStore::load_all(&entry.filename, false)?;
 
-            readable.push(store.clone());
-            writable.push(store);
+                readable.extend(loaded_stores.iter().cloned());
+                writable.extend(loaded_stores);
+            } else {
+                let stores_init = DataStore::init(&entry.filename)?;
+
+                readable.extend(stores_init.iter().cloned());
+                writable.extend(stores_init);
+            }
         }
 
         let stores = DataLakeStores {

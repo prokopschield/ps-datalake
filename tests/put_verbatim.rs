@@ -43,7 +43,9 @@ impl Drop for StoreFile {
 
 fn open_store(name: &str) -> Result<(StoreFile, DataStore<'static>), Box<dyn Error>> {
     let file = StoreFile::new(name)?;
-    let store = DataStore::init(&file.path)?;
+    let store = DataStore::init(&file.path)?
+        .pop()
+        .ok_or("DataStore::init returned no stores")?;
 
     Ok((file, store))
 }
